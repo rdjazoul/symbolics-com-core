@@ -35,6 +35,31 @@ public sealed class QdrantClient : IQdrantClient
         return true;
     }
 
+    public async Task<bool> CheckConnectivityAsync(CancellationToken cancellationToken = default)
+    {
+        var options = _optionsMonitor.CurrentValue;
+        if (string.IsNullOrWhiteSpace(options.UrlHttp))
+        {
+            _logger.LogWarning("Qdrant URL is missing from configuration.");
+            return false;
+        }
+
+        var healthUrl = $"{options.UrlHttp.TrimEnd('/')}/healthz";
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, healthUrl);
+            AddApiKeyHeader(request, options.ApiKey);
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to reach Qdrant health endpoint at {HealthUrl}.", healthUrl);
+            return false;
+        }
+    }
+
     public async Task EnsureCollectionsAsync(CancellationToken cancellationToken)
     {
         try

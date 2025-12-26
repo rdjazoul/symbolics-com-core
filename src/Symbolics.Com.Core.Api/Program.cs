@@ -1,9 +1,13 @@
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Symbolics.Com.Core.Application.Repositories;
 using Symbolics.Com.Core.Contract.ExternalServices;
 using Symbolics.Com.Core.Contract.Qdrant;
 using Symbolics.Com.Core.Infrastructure.ExternalServices;
+using Symbolics.Com.Core.Infrastructure.HealthChecks;
+using Symbolics.Com.Core.Infrastructure.Logging;
 using Symbolics.Com.Core.Infrastructure.Persistence;
 using Symbolics.Com.Core.Infrastructure.Qdrant;
 using Symbolics.Com.Core.Infrastructure.Repositories;
@@ -31,6 +35,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddDbContext<CoreDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection("Ai"));
+builder.Services.Configure<LogOptions>(builder.Configuration.GetSection("Log"));
 builder.Services.Configure<TwitchOptions>(builder.Configuration.GetSection("Twitch"));
 builder.Services.Configure<QdrantOptions>(builder.Configuration.GetSection("Qdrant"));
 builder.Services.AddHttpClient<QdrantClient>();
@@ -39,6 +44,14 @@ builder.Services.AddHttpClient<ITwitchService, TwitchService>();
 builder.Services.AddHttpClient<IAiService, GeminiAiService>();
 builder.Services.AddHttpClient<IEmbeddingService, EmbeddingService>();
 builder.Services.AddHostedService<QdrantCollectionInitializer>();
+builder.Services.AddHealthChecks()
+    .AddNpgSql(
+        connectionString: connectionString,
+        name: "PostgreSQL",
+        failureStatus: HealthStatus.Unhealthy,
+        tags: ["db", "sql"])
+    .AddCheck<QdrantHealthCheck>("Qdrant", failureStatus: HealthStatus.Unhealthy)
+    .AddCheck<SeqHealthCheck>("Seq", failureStatus: HealthStatus.Degraded);
 builder.Services.AddControllers();
 
 var app = builder.Build();
@@ -53,5 +66,26 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.MapControllers();
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+
+        var response = new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(entry => new
+            {
+                component = entry.Key,
+                status = entry.Value.Status.ToString(),
+                description = entry.Value.Description,
+                duration = entry.Value.Duration
+            })
+        };
+
+        await context.Response.WriteAsJsonAsync(response);
+    }
+});
 
 app.Run();
