@@ -39,12 +39,12 @@ public sealed class QdrantClient : IQdrantClient
     private async Task EnsureCollectionAsync(string collectionName, CancellationToken cancellationToken)
     {
         var options = _optionsMonitor.CurrentValue;
-        if (string.IsNullOrWhiteSpace(options.Url))
+        if (string.IsNullOrWhiteSpace(options.UrlHttp))
         {
             throw new InvalidOperationException("Qdrant URL is missing from configuration.");
         }
 
-        var collectionUrl = $"{options.Url.TrimEnd('/')}/collections/{collectionName}";
+        var collectionUrl = $"{options.UrlHttp.TrimEnd('/')}/collections/{collectionName}";
         using var existsRequest = new HttpRequestMessage(HttpMethod.Get, collectionUrl);
         AddApiKeyHeader(existsRequest, options.ApiKey);
 
