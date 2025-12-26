@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Symbolics.Com.Core.Infrastructure.Logging;
@@ -21,7 +22,14 @@ public sealed class SeqHealthCheck : IHealthCheck
         CancellationToken cancellationToken = default)
     {
         var seqUrl = _optionsMonitor.CurrentValue.SeqUrl;
-        if (string.IsNullOrWhiteSpace(seqUrl))
+        var healthUrl = _optionsMonitor.CurrentValue.SeqHealthUrl;
+
+        if (string.IsNullOrWhiteSpace(healthUrl))
+        {
+            healthUrl = seqUrl;
+        }
+
+        if (string.IsNullOrWhiteSpace(healthUrl))
         {
             return HealthCheckResult.Degraded("Seq URL is not configured.");
         }
@@ -29,7 +37,7 @@ public sealed class SeqHealthCheck : IHealthCheck
         try
         {
             using var httpClient = _httpClientFactory.CreateClient();
-            using var response = await httpClient.GetAsync(seqUrl, cancellationToken);
+            using var response = await httpClient.GetAsync(healthUrl, cancellationToken);
 
             if (response.IsSuccessStatusCode
                 || response.StatusCode == HttpStatusCode.Unauthorized
