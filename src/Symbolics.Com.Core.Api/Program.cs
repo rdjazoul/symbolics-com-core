@@ -1,8 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Serilog;
-using Serilog.Core;
-using Symbolics.Com.Core.Api.Logging;
 using Symbolics.Com.Core.Application.Repositories;
 using Symbolics.Com.Core.Contract.ExternalServices;
 using Symbolics.Com.Core.Contract.Qdrant;
@@ -20,16 +17,9 @@ builder.Configuration
     .AddUserSecrets<Program>(optional: true, reloadOnChange: true)
     .AddEnvironmentVariables();
 
-builder.Services.Configure<LogOptions>(builder.Configuration.GetSection("LogOptions"));
-
-var levelSwitch = new LoggingLevelSwitch();
-builder.Services.AddSingleton(levelSwitch);
-
 builder.Host.UseSerilog((context, services, configuration) =>
 {
-    var optionsMonitor = services.GetRequiredService<IOptionsMonitor<LogOptions>>();
-    var options = optionsMonitor.CurrentValue;
-    ConfigureLogger(configuration, context.Configuration, options, levelSwitch);
+    configuration.ReadFrom.Configuration(context.Configuration);
 });
 
 var connectionString = builder.Configuration.GetConnectionString("CoreDatabase");
@@ -53,14 +43,6 @@ builder.Services.AddControllers();
 
 var app = builder.Build();
 
-var logOptionsMonitor = app.Services.GetRequiredService<IOptionsMonitor<LogOptions>>();
-logOptionsMonitor.OnChange(options =>
-{
-    levelSwitch.MinimumLevel = options.MinimumLevel;
-    Log.CloseAndFlush();
-    Log.Logger = ConfigureLogger(new LoggerConfiguration(), app.Configuration, options, levelSwitch).CreateLogger();
-});
-
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
@@ -73,24 +55,3 @@ using (var scope = app.Services.CreateScope())
 app.MapControllers();
 
 app.Run();
-
-static LoggerConfiguration ConfigureLogger(
-    LoggerConfiguration configuration,
-    IConfiguration appConfiguration,
-    LogOptions options,
-    LoggingLevelSwitch levelSwitch)
-{
-    levelSwitch.MinimumLevel = options.MinimumLevel;
-
-    configuration
-        .ReadFrom.Configuration(appConfiguration)
-        .MinimumLevel.ControlledBy(levelSwitch)
-        .Enrich.FromLogContext();
-
-    if (!string.IsNullOrWhiteSpace(options.SeqUrl))
-    {
-        configuration.WriteTo.Seq(options.SeqUrl);
-    }
-
-    return configuration;
-}
