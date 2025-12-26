@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Symbolics.Com.Core.Application.Repositories;
+using Symbolics.Com.Core.Contract.Qdrant;
 using Symbolics.Com.Core.Infrastructure.Persistence;
+using Symbolics.Com.Core.Infrastructure.Qdrant;
 using Symbolics.Com.Core.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +22,10 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 builder.Services.AddDbContext<CoreDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
+builder.Services.Configure<QdrantOptions>(builder.Configuration.GetSection("Qdrant"));
+builder.Services.AddHttpClient<QdrantClient>();
+builder.Services.AddSingleton<IQdrantClient>(sp => sp.GetRequiredService<QdrantClient>());
+builder.Services.AddHostedService<QdrantCollectionInitializer>();
 builder.Services.AddControllers();
 
 var app = builder.Build();
