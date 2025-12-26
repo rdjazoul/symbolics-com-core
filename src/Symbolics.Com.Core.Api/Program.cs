@@ -8,7 +8,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration
     .SetBasePath(Directory.GetCurrentDirectory())
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-    .AddJsonFile("appsettings.config", optional: false, reloadOnChange: true)
     .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
     .AddUserSecrets<Program>(optional: true, reloadOnChange: true)
     .AddEnvironmentVariables();
@@ -16,7 +15,7 @@ builder.Configuration
 var connectionString = builder.Configuration.GetConnectionString("CoreDatabase");
 if (string.IsNullOrWhiteSpace(connectionString))
 {
-    throw new InvalidOperationException("Connection string 'CoreDatabase' is missing in appsettings.config.");
+    throw new InvalidOperationException("Connection string 'CoreDatabase' is missing from configuration.");
 }
 
 builder.Services.AddDbContext<CoreDbContext>(options => options.UseNpgsql(connectionString));
