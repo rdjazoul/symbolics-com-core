@@ -21,28 +21,44 @@ public sealed class GeminiAiService : IAiService
     public Task<string> GenerateGameDescription(string gameName)
     {
         var options = _optionsMonitor.CurrentValue;
-        _logger.LogInformation(
-            "Generating game description (placeholder). BaseUrl: {BaseUrl}, Game: {GameName}",
-            options.DescriptionBaseUrl,
-            gameName);
+        try
+        {
+            _logger.LogInformation(
+                "Generating game description (placeholder). BaseUrl: {BaseUrl}, Game: {GameName}",
+                options.DescriptionBaseUrl,
+                gameName);
 
-        return Task.FromResult($"Placeholder description for game '{gameName}'.");
+            return Task.FromResult($"Placeholder description for game '{gameName}'.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate game description for {GameName}.", gameName);
+            throw;
+        }
     }
 
     public Task<AiStreamerDescriptionsResponse> GenerateStreamerDescription(string bio, string login)
     {
         var options = _optionsMonitor.CurrentValue;
-        _logger.LogInformation(
-            "Generating streamer descriptions (placeholder). BaseUrl: {BaseUrl}, Login: {Login}",
-            options.DescriptionBaseUrl,
-            login);
-
-        var response = new AiStreamerDescriptionsResponse
+        try
         {
-            VectorDescription = $"Placeholder vector description for '{login}'.",
-            PersonaDescription = $"Placeholder persona description derived from '{bio}'."
-        };
+            _logger.LogInformation(
+                "Generating streamer descriptions (placeholder). BaseUrl: {BaseUrl}, Login: {Login}",
+                options.DescriptionBaseUrl,
+                login);
 
-        return Task.FromResult(response);
+            var response = new AiStreamerDescriptionsResponse
+            {
+                VectorDescription = $"Placeholder vector description for '{login}'.",
+                PersonaDescription = $"Placeholder persona description derived from '{bio}'."
+            };
+
+            return Task.FromResult(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate streamer descriptions for {Login}.", login);
+            throw;
+        }
     }
 }

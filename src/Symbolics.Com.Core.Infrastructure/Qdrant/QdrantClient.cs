@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Symbolics.Com.Core.Contract.Qdrant;
 
@@ -12,11 +13,16 @@ public sealed class QdrantClient : IQdrantClient
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient _httpClient;
     private readonly IOptionsMonitor<QdrantOptions> _optionsMonitor;
+    private readonly ILogger<QdrantClient> _logger;
 
-    public QdrantClient(HttpClient httpClient, IOptionsMonitor<QdrantOptions> optionsMonitor)
+    public QdrantClient(
+        HttpClient httpClient,
+        IOptionsMonitor<QdrantOptions> optionsMonitor,
+        ILogger<QdrantClient> logger)
     {
         _httpClient = httpClient;
         _optionsMonitor = optionsMonitor;
+        _logger = logger;
     }
 
     public bool SaveGameDescription(Guid gameId, float[] vector)
@@ -31,9 +37,17 @@ public sealed class QdrantClient : IQdrantClient
 
     public async Task EnsureCollectionsAsync(CancellationToken cancellationToken)
     {
-        await EnsureCollectionAsync("GameVectors", cancellationToken);
-        await EnsureCollectionAsync("StreamerVectors", cancellationToken);
-        await EnsureCollectionAsync("CampaignVectors", cancellationToken);
+        try
+        {
+            await EnsureCollectionAsync("GameVectors", cancellationToken);
+            await EnsureCollectionAsync("StreamerVectors", cancellationToken);
+            await EnsureCollectionAsync("CampaignVectors", cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed while ensuring Qdrant collections.");
+            throw;
+        }
     }
 
     private async Task EnsureCollectionAsync(string collectionName, CancellationToken cancellationToken)
@@ -45,17 +59,28 @@ public sealed class QdrantClient : IQdrantClient
         }
 
         var collectionUrl = $"{options.UrlHttp.TrimEnd('/')}/collections/{collectionName}";
-        using var existsRequest = new HttpRequestMessage(HttpMethod.Get, collectionUrl);
-        AddApiKeyHeader(existsRequest, options.ApiKey);
+        _logger.LogInformation("Ensuring Qdrant collection {CollectionName} at {CollectionUrl}.", collectionName, collectionUrl);
 
-        using var existsResponse = await _httpClient.SendAsync(existsRequest, cancellationToken);
-        if (existsResponse.StatusCode == HttpStatusCode.NotFound)
+        try
         {
-            await CreateCollectionAsync(collectionUrl, options.ApiKey, cancellationToken);
-            return;
-        }
+            using var existsRequest = new HttpRequestMessage(HttpMethod.Get, collectionUrl);
+            AddApiKeyHeader(existsRequest, options.ApiKey);
 
-        existsResponse.EnsureSuccessStatusCode();
+            using var existsResponse = await _httpClient.SendAsync(existsRequest, cancellationToken);
+            if (existsResponse.StatusCode == HttpStatusCode.NotFound)
+            {
+                await CreateCollectionAsync(collectionUrl, options.ApiKey, cancellationToken);
+                _logger.LogInformation("Created Qdrant collection {CollectionName}.", collectionName);
+                return;
+            }
+
+            existsResponse.EnsureSuccessStatusCode();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to ensure Qdrant collection {CollectionName}.", collectionName);
+            throw;
+        }
     }
 
     private async Task CreateCollectionAsync(string collectionUrl, string apiKey, CancellationToken cancellationToken)
