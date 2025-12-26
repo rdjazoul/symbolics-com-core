@@ -20,7 +20,10 @@ public sealed class EmbeddingService : IEmbeddingService
     public Task<float[]> GenerateEmbedding(string text)
     {
         var options = _optionsMonitor.CurrentValue;
-        _logger.LogInformation("Generating embedding (placeholder). BaseUrl: {BaseUrl}, Length: {Length}", options.BaseUrl, text.Length);
+        _logger.LogInformation(
+            "Generating embedding (placeholder). BaseUrl: {BaseUrl}, Length: {Length}",
+            options.EmbeddingBaseUrl,
+            text.Length);
 
         var dimension = options.EmbeddingDimensions > 0 ? options.EmbeddingDimensions : 1536;
         return Task.FromResult(new float[dimension]);

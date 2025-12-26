@@ -21,7 +21,10 @@ public sealed class GeminiAiService : IAiService
     public Task<string> GenerateGameDescription(string gameName)
     {
         var options = _optionsMonitor.CurrentValue;
-        _logger.LogInformation("Generating game description (placeholder). BaseUrl: {BaseUrl}, Game: {GameName}", options.BaseUrl, gameName);
+        _logger.LogInformation(
+            "Generating game description (placeholder). BaseUrl: {BaseUrl}, Game: {GameName}",
+            options.DescriptionBaseUrl,
+            gameName);
 
         return Task.FromResult($"Placeholder description for game '{gameName}'.");
     }
@@ -29,7 +32,10 @@ public sealed class GeminiAiService : IAiService
     public Task<AiStreamerDescriptionsResponse> GenerateStreamerDescription(string bio, string login)
     {
         var options = _optionsMonitor.CurrentValue;
-        _logger.LogInformation("Generating streamer descriptions (placeholder). BaseUrl: {BaseUrl}, Login: {Login}", options.BaseUrl, login);
+        _logger.LogInformation(
+            "Generating streamer descriptions (placeholder). BaseUrl: {BaseUrl}, Login: {Login}",
+            options.DescriptionBaseUrl,
+            login);
 
         var response = new AiStreamerDescriptionsResponse
         {
