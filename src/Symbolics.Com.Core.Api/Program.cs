@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Http.Resilience;
 using Serilog;
 using Symbolics.Com.Core.Application.Repositories;
 using Symbolics.Com.Core.Contract.ExternalServices;
@@ -11,6 +12,7 @@ using Symbolics.Com.Core.Infrastructure.Logging;
 using Symbolics.Com.Core.Infrastructure.Persistence;
 using Symbolics.Com.Core.Infrastructure.Qdrant;
 using Symbolics.Com.Core.Infrastructure.Repositories;
+using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,8 +42,12 @@ builder.Services.Configure<TwitchOptions>(builder.Configuration.GetSection("Twit
 builder.Services.Configure<QdrantOptions>(builder.Configuration.GetSection("Qdrant"));
 builder.Services.AddHttpClient<QdrantClient>();
 builder.Services.AddSingleton<IQdrantClient>(sp => sp.GetRequiredService<QdrantClient>());
-builder.Services.AddHttpClient<ITwitchService, TwitchService>();
-builder.Services.AddHttpClient<IAiService, GeminiAiService>();
+builder.Services.AddHttpClient<ITwitchService, TwitchService>()
+    .AddStandardResilienceHandler((serviceProvider, options) =>
+        ConfigureHttpResilience(serviceProvider, options, "Twitch", TimeSpan.FromSeconds(15)));
+builder.Services.AddHttpClient<IAiService, GeminiAiService>()
+    .AddStandardResilienceHandler((serviceProvider, options) =>
+        ConfigureHttpResilience(serviceProvider, options, "Gemini", TimeSpan.FromSeconds(30)));
 builder.Services.AddHttpClient<IEmbeddingService, EmbeddingService>();
 builder.Services.AddHostedService<QdrantCollectionInitializer>();
 builder.Services.AddHealthChecks()
@@ -89,3 +95,47 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 });
 
 app.Run();
+
+static void ConfigureHttpResilience(
+    IServiceProvider serviceProvider,
+    HttpStandardResilienceOptions options,
+    string clientName,
+    TimeSpan totalTimeout)
+{
+    var logger = serviceProvider.GetRequiredService<ILoggerFactory>()
+        .CreateLogger("HttpClientResilience");
+
+    options.Retry.MaxRetryAttempts = 3;
+    options.Retry.BackoffType = DelayBackoffType.Exponential;
+    options.Retry.Delay = TimeSpan.FromSeconds(2);
+    options.Retry.UseRetryAfterHeader = true;
+    options.Retry.ShouldHandle = args =>
+    {
+        var isTransient = HttpClientResiliencePredicates.IsTransient(args.Outcome);
+        var isRateLimited = args.Outcome.Result?.StatusCode == HttpStatusCode.TooManyRequests;
+        return ValueTask.FromResult(isTransient || isRateLimited);
+    };
+    options.Retry.OnRetry = args =>
+    {
+        var requestUri = args.Outcome.Result?.RequestMessage?.RequestUri?.ToString() ?? "<unknown>";
+        logger.LogWarning(
+            "Retrying {Client} request to {Url}. Attempt {AttemptNumber}.",
+            clientName,
+            requestUri,
+            args.AttemptNumber + 1);
+        return ValueTask.CompletedTask;
+    };
+
+    options.CircuitBreaker.ShouldHandle = args =>
+    {
+        var isTransient = HttpClientResiliencePredicates.IsTransient(args.Outcome);
+        var isRateLimited = args.Outcome.Result?.StatusCode == HttpStatusCode.TooManyRequests;
+        return ValueTask.FromResult(isTransient || isRateLimited);
+    };
+    options.CircuitBreaker.MinimumThroughput = 5;
+    options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+    options.CircuitBreaker.FailureRatio = 1.0;
+    options.CircuitBreaker.BreakDuration = TimeSpan.FromMinutes(1);
+
+    options.TotalRequestTimeout.Timeout = totalTimeout;
+}
