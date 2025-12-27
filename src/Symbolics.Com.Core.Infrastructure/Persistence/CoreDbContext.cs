@@ -15,6 +15,7 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
     public DbSet<StreamerEnrichmentQueue> StreamerEnrichmentQueues => Set<StreamerEnrichmentQueue>();
     public DbSet<GamePlayed> GamePlays => Set<GamePlayed>();
     public DbSet<Campaign> Campaigns => Set<Campaign>();
+    public DbSet<ExternalServiceLog> ExternalServiceLogs => Set<ExternalServiceLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -125,6 +126,19 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
             entity.HasKey(e => e.Id);
             entity.Property(e => e.UserDescription).HasColumnType("text");
             entity.Property(e => e.OptimizedDescription).HasColumnType("text");
+        });
+
+        modelBuilder.Entity<ExternalServiceLog>(entity =>
+        {
+            entity.ToTable("ExternalServiceLog");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Service).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.ActionType).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Model).HasMaxLength(200);
+            entity.Property(e => e.ExecutionTimeMs);
+            entity.Property(e => e.CreatedAt);
+            entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => new { e.Service, e.ActionType });
         });
     }
 }

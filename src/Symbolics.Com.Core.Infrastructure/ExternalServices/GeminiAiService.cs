@@ -10,17 +10,24 @@ public sealed class GeminiAiService : IAiService
     private readonly HttpClient _httpClient;
     private readonly IOptionsMonitor<AiOptions> _optionsMonitor;
     private readonly ILogger<GeminiAiService> _logger;
+    private readonly IConsumptionTracker _consumptionTracker;
 
-    public GeminiAiService(HttpClient httpClient, IOptionsMonitor<AiOptions> optionsMonitor, ILogger<GeminiAiService> logger)
+    public GeminiAiService(
+        HttpClient httpClient,
+        IOptionsMonitor<AiOptions> optionsMonitor,
+        ILogger<GeminiAiService> logger,
+        IConsumptionTracker consumptionTracker)
     {
         _httpClient = httpClient;
         _optionsMonitor = optionsMonitor;
         _logger = logger;
+        _consumptionTracker = consumptionTracker;
     }
 
-    public Task<string> GenerateGameDescription(string gameName)
+    public async Task<AiGameDescriptionResponse> GenerateGameDescription(string gameName)
     {
         var options = _optionsMonitor.CurrentValue;
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             _logger.LogInformation(
@@ -28,18 +35,43 @@ public sealed class GeminiAiService : IAiService
                 options.DescriptionBaseUrl,
                 gameName);
 
-            return Task.FromResult($"Placeholder description for game '{gameName}'.");
+            var description = $"Placeholder description for game '{gameName}'.";
+            stopwatch.Stop();
+
+            var metrics = new ConsumptionMetrics
+            {
+                Model = "gemini-placeholder",
+                InputUnits = gameName.Length,
+                OutputUnits = description.Length,
+                ProcessingTimeMs = (int)stopwatch.ElapsedMilliseconds
+            };
+
+            await _consumptionTracker.LogAsync(
+                service: "Gemini",
+                action: "GameDescription",
+                model: metrics.Model,
+                input: metrics.InputUnits,
+                output: metrics.OutputUnits,
+                elapsedMs: metrics.ProcessingTimeMs);
+
+            return new AiGameDescriptionResponse
+            {
+                Description = description,
+                Consumption = metrics
+            };
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
             _logger.LogError(ex, "Failed to generate game description for {GameName}.", gameName);
             throw;
         }
     }
 
-    public Task<AiStreamerDescriptionsResponse> GenerateStreamerDescription(string bio, string login)
+    public async Task<AiStreamerDescriptionsResponse> GenerateStreamerDescription(string bio, string login)
     {
         var options = _optionsMonitor.CurrentValue;
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             _logger.LogInformation(
@@ -53,10 +85,29 @@ public sealed class GeminiAiService : IAiService
                 PersonaDescription = $"Placeholder persona description derived from '{bio}'."
             };
 
-            return Task.FromResult(response);
+            stopwatch.Stop();
+
+            response.Consumption = new ConsumptionMetrics
+            {
+                Model = "gemini-placeholder",
+                InputUnits = bio.Length,
+                OutputUnits = response.VectorDescription.Length + response.PersonaDescription.Length,
+                ProcessingTimeMs = (int)stopwatch.ElapsedMilliseconds
+            };
+
+            await _consumptionTracker.LogAsync(
+                service: "Gemini",
+                action: "StreamerDescription",
+                model: response.Consumption.Model,
+                input: response.Consumption.InputUnits,
+                output: response.Consumption.OutputUnits,
+                elapsedMs: response.Consumption.ProcessingTimeMs);
+
+            return response;
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
             _logger.LogError(ex, "Failed to generate streamer descriptions for {Login}.", login);
             throw;
         }

@@ -48,6 +48,7 @@ builder.Services.AddHttpClient<ITwitchService, TwitchService>()
 builder.Services.AddHttpClient<IAiService, GeminiAiService>()
     .AddStandardResilienceHandler(options => ConfigureHttpResilience(options, "Gemini", TimeSpan.FromSeconds(30)));
 builder.Services.AddHttpClient<IEmbeddingService, EmbeddingService>();
+builder.Services.AddScoped<IConsumptionTracker, ConsumptionTracker>();
 builder.Services.AddHostedService<QdrantCollectionInitializer>();
 builder.Services.AddHealthChecks()
     .AddNpgSql(

@@ -5,6 +5,6 @@ namespace Symbolics.Com.Core.Contract.ExternalServices;
 
 public interface IAiService
 {
-    Task<string> GenerateGameDescription(string gameName);
+    Task<AiGameDescriptionResponse> GenerateGameDescription(string gameName);
     Task<AiStreamerDescriptions> GenerateStreamerDescription(string bio, string login);
 }

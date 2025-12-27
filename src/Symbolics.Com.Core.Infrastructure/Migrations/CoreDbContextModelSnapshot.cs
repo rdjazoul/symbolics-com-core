@@ -32,6 +32,46 @@ public partial class CoreDbContextModelSnapshot : ModelSnapshot
             b.ToTable("Campaign");
         });
 
+        modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.ExternalServiceLog", b =>
+        {
+            b.Property<Guid>("Id")
+                .HasColumnType("uuid");
+
+            b.Property<string>("ActionType")
+                .IsRequired()
+                .HasMaxLength(200)
+                .HasColumnType("character varying(200)");
+
+            b.Property<DateTime>("CreatedAt")
+                .HasColumnType("timestamp with time zone");
+
+            b.Property<int>("ExecutionTimeMs")
+                .HasColumnType("integer");
+
+            b.Property<long>("InputUnits")
+                .HasColumnType("bigint");
+
+            b.Property<string>("Model")
+                .HasMaxLength(200)
+                .HasColumnType("character varying(200)");
+
+            b.Property<long>("OutputUnits")
+                .HasColumnType("bigint");
+
+            b.Property<string>("Service")
+                .IsRequired()
+                .HasMaxLength(200)
+                .HasColumnType("character varying(200)");
+
+            b.HasKey("Id");
+
+            b.HasIndex("CreatedAt");
+
+            b.HasIndex("Service", "ActionType");
+
+            b.ToTable("ExternalServiceLog");
+        });
+
         modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.Game", b =>
         {
             b.Property<Guid>("Id")
