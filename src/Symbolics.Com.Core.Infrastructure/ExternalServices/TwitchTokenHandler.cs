@@ -92,7 +92,8 @@ public sealed class TwitchTokenHandler : DelegatingHandler
             response.EnsureSuccessStatusCode();
         }
 
-        var tokenResponse = await response.Content.ReadFromJsonAsync<TwitchTokenResponse>(JsonOptions, cancellationToken)
+        var content = response.Content ?? throw new InvalidOperationException("Twitch token response content was null.");
+        var tokenResponse = await content.ReadFromJsonAsync<TwitchTokenResponse>(JsonOptions, cancellationToken)
             ?? throw new InvalidOperationException("Twitch token response was empty.");
 
         var expiresAt = DateTimeOffset.UtcNow.AddSeconds(tokenResponse.ExpiresIn - 60);

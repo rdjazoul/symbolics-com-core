@@ -56,7 +56,8 @@ builder.Services.AddHttpClient<ITwitchService, TwitchService>((sp, client) =>
         var options = sp.GetRequiredService<IOptionsMonitor<TwitchOptions>>().CurrentValue;
         if (!string.IsNullOrWhiteSpace(options.BaseUrl))
         {
-            client.BaseAddress = new Uri(options.BaseUrl);
+            var baseUrl = options.BaseUrl.EndsWith('/') ? options.BaseUrl : options.BaseUrl + "/";
+            client.BaseAddress = new Uri(baseUrl);
         }
     })
     .AddHttpMessageHandler<TwitchTokenHandler>()
