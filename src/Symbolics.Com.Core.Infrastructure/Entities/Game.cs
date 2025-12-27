@@ -5,6 +5,7 @@ public sealed class Game
     public Guid Id { get; set; }
     public required string Name { get; set; }
     public string? VectorDescription { get; set; }
+    public bool IsReady { get; set; }
 
     public ICollection<GameTwitch> TwitchMappings { get; set; } = new List<GameTwitch>();
     public GameEnrichmentQueue? EnrichmentQueue { get; set; }

@@ -73,6 +73,12 @@ public sealed class TwitchEnrichmentWorker(
             var twitchInfo = await twitchService.GetStreamerInfos(item.TwitchLogin);
             var aiDescriptions = await aiService.GenerateStreamerDescription(twitchInfo.Description, twitchInfo.Login);
 
+            var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.VectorDescription);
+            if (!qdrantClient.SaveStreamerDescription(item.StreamerId, embedding.Vector))
+            {
+                throw new InvalidOperationException($"Failed to save streamer embedding for {item.StreamerId}.");
+            }
+
             var update = new StreamerEnrichmentUpdate(
                 item.StreamerId,
                 twitchInfo.Id,
@@ -82,15 +88,7 @@ public sealed class TwitchEnrichmentWorker(
                 aiDescriptions.PersonaDescription,
                 DateTime.UtcNow);
 
-            await workerRepository.UpdateStreamerEnrichmentAsync(update, stoppingToken);
-
-            var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.VectorDescription);
-            if (!qdrantClient.SaveStreamerDescription(item.StreamerId, embedding.Vector))
-            {
-                throw new InvalidOperationException($"Failed to save streamer embedding for {item.StreamerId}.");
-            }
-
-            await workerRepository.RemoveStreamerFromEnrichmentQueueAsync(item.StreamerId, stoppingToken);
+            await workerRepository.FinalizeStreamerEnrichmentAsync(update, stoppingToken);
         }
         catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
         {
@@ -123,21 +121,19 @@ public sealed class TwitchEnrichmentWorker(
             var twitchInfo = await twitchService.GetGameInfos(item.TwitchId);
             var aiDescriptions = await aiService.GenerateGameDescription(twitchInfo.Name);
 
-            var update = new GameEnrichmentUpdate(
-                item.GameId,
-                twitchInfo.Id,
-                twitchInfo.Name,
-                aiDescriptions.Description);
-
-            await workerRepository.UpdateGameEnrichmentAsync(update, stoppingToken);
-
             var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.Description);
             if (!qdrantClient.SaveGameDescription(item.GameId, embedding.Vector))
             {
                 throw new InvalidOperationException($"Failed to save game embedding for {item.GameId}.");
             }
 
-            await workerRepository.RemoveGameFromEnrichmentQueueAsync(item.GameId, stoppingToken);
+            var update = new GameEnrichmentUpdate(
+                item.GameId,
+                twitchInfo.Id,
+                twitchInfo.Name,
+                aiDescriptions.Description);
+
+            await workerRepository.FinalizeGameEnrichmentAsync(update, stoppingToken);
         }
         catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
         {

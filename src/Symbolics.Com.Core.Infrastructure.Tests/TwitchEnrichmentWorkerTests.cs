@@ -55,13 +55,12 @@ public sealed class TwitchEnrichmentWorkerTests
 
         worker.TwitchService.Verify(service => service.GetStreamerInfos("login-1"), Times.Once);
         worker.AiService.Verify(service => service.GenerateStreamerDescription("bio", "login-1"), Times.Once);
-        worker.WorkerRepository.Verify(repository => repository.UpdateStreamerEnrichmentAsync(
+        worker.EmbeddingService.Verify(service => service.GenerateEmbedding("vector"), Times.Once);
+        worker.QdrantClient.Verify(client => client.SaveStreamerDescription(streamerItem.StreamerId, embeddingResponse.Vector), Times.Once);
+        worker.WorkerRepository.Verify(repository => repository.FinalizeStreamerEnrichmentAsync(
             It.IsAny<StreamerEnrichmentUpdate>(),
             It.IsAny<CancellationToken>()),
             Times.Once);
-        worker.EmbeddingService.Verify(service => service.GenerateEmbedding("vector"), Times.Once);
-        worker.QdrantClient.Verify(client => client.SaveStreamerDescription(streamerItem.StreamerId, embeddingResponse.Vector), Times.Once);
-        worker.WorkerRepository.Verify(repository => repository.RemoveStreamerFromEnrichmentQueueAsync(streamerItem.StreamerId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -92,13 +91,12 @@ public sealed class TwitchEnrichmentWorkerTests
 
         worker.TwitchService.Verify(service => service.GetGameInfos("game-1"), Times.Once);
         worker.AiService.Verify(service => service.GenerateGameDescription("Game Name"), Times.Once);
-        worker.WorkerRepository.Verify(repository => repository.UpdateGameEnrichmentAsync(
+        worker.EmbeddingService.Verify(service => service.GenerateEmbedding("game vector"), Times.Once);
+        worker.QdrantClient.Verify(client => client.SaveGameDescription(gameItem.GameId, embeddingResponse.Vector), Times.Once);
+        worker.WorkerRepository.Verify(repository => repository.FinalizeGameEnrichmentAsync(
             It.IsAny<GameEnrichmentUpdate>(),
             It.IsAny<CancellationToken>()),
             Times.Once);
-        worker.EmbeddingService.Verify(service => service.GenerateEmbedding("game vector"), Times.Once);
-        worker.QdrantClient.Verify(client => client.SaveGameDescription(gameItem.GameId, embeddingResponse.Vector), Times.Once);
-        worker.WorkerRepository.Verify(repository => repository.RemoveGameFromEnrichmentQueueAsync(gameItem.GameId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static WorkerHarness BuildWorker(
@@ -130,13 +128,9 @@ public sealed class TwitchEnrichmentWorkerTests
             .ReturnsAsync(streamerQueue ?? []);
         workerRepository.Setup(repository => repository.GetGameEnrichmentQueueAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(gameQueue ?? []);
-        workerRepository.Setup(repository => repository.UpdateStreamerEnrichmentAsync(It.IsAny<StreamerEnrichmentUpdate>(), It.IsAny<CancellationToken>()))
+        workerRepository.Setup(repository => repository.FinalizeStreamerEnrichmentAsync(It.IsAny<StreamerEnrichmentUpdate>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        workerRepository.Setup(repository => repository.UpdateGameEnrichmentAsync(It.IsAny<GameEnrichmentUpdate>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        workerRepository.Setup(repository => repository.RemoveStreamerFromEnrichmentQueueAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        workerRepository.Setup(repository => repository.RemoveGameFromEnrichmentQueueAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        workerRepository.Setup(repository => repository.FinalizeGameEnrichmentAsync(It.IsAny<GameEnrichmentUpdate>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         workerRepository.Setup(repository => repository.IncrementStreamerRetryAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);

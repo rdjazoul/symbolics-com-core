@@ -34,6 +34,10 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).HasMaxLength(250).IsRequired();
             entity.Property(e => e.VectorDescription).HasColumnType("text");
+            entity.Property(e => e.IsReady).HasDefaultValue(false);
+            entity.HasIndex(e => e.Id)
+                .HasDatabaseName("IX_Game_IsReady")
+                .HasFilter("\"IsReady\" = TRUE");
         });
 
         modelBuilder.Entity<GameTwitch>(entity =>
@@ -66,7 +70,11 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
             entity.Property(e => e.VectorDescription).HasColumnType("text");
             entity.Property(e => e.PersonaDescription).HasColumnType("text");
             entity.Property(e => e.Email).HasMaxLength(320);
+            entity.Property(e => e.IsReady).HasDefaultValue(false);
             entity.HasIndex(e => e.Email);
+            entity.HasIndex(e => e.Id)
+                .HasDatabaseName("IX_Streamer_IsReady")
+                .HasFilter("\"IsReady\" = TRUE");
         });
 
         modelBuilder.Entity<StreamerTwitch>(entity =>

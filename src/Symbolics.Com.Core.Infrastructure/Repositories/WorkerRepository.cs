@@ -289,7 +289,7 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
             .ToListAsync(cancellationToken);
     }
 
-    public async Task UpdateStreamerEnrichmentAsync(StreamerEnrichmentUpdate update, CancellationToken cancellationToken = default)
+    public async Task FinalizeStreamerEnrichmentAsync(StreamerEnrichmentUpdate update, CancellationToken cancellationToken = default)
     {
         var streamer = await _dbContext.Streamers
             .SingleOrDefaultAsync(entity => entity.Id == update.StreamerId, cancellationToken);
@@ -306,6 +306,7 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
         streamer.VectorDescription = update.VectorDescription;
         streamer.PersonaDescription = update.PersonaDescription;
         streamer.LastModificationDate = update.LastModificationDate;
+        streamer.IsReady = true;
 
         var twitch = await _dbContext.StreamerTwitches
             .SingleOrDefaultAsync(entity => entity.TwitchId == update.TwitchId, cancellationToken);
@@ -327,10 +328,18 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
             twitch.TwitchName = update.TwitchName;
         }
 
+        var queueEntry = await _dbContext.StreamerEnrichmentQueues
+            .SingleOrDefaultAsync(entity => entity.StreamerId == update.StreamerId, cancellationToken);
+
+        if (queueEntry is not null)
+        {
+            _dbContext.StreamerEnrichmentQueues.Remove(queueEntry);
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task UpdateGameEnrichmentAsync(GameEnrichmentUpdate update, CancellationToken cancellationToken = default)
+    public async Task FinalizeGameEnrichmentAsync(GameEnrichmentUpdate update, CancellationToken cancellationToken = default)
     {
         var game = await _dbContext.Games
             .SingleOrDefaultAsync(entity => entity.Id == update.GameId, cancellationToken);
@@ -347,6 +356,7 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
 
         game.Name = update.TwitchName;
         game.VectorDescription = update.VectorDescription;
+        game.IsReady = true;
 
         var twitch = await _dbContext.GameTwitches
             .SingleOrDefaultAsync(entity => entity.TwitchId == update.TwitchId, cancellationToken);
@@ -366,34 +376,14 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
             twitch.TwitchName = update.TwitchName;
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
-    }
+        var queueEntry = await _dbContext.GameEnrichmentQueues
+            .SingleOrDefaultAsync(entity => entity.GameId == update.GameId, cancellationToken);
 
-    public async Task RemoveStreamerFromEnrichmentQueueAsync(Guid streamerId, CancellationToken cancellationToken = default)
-    {
-        var entry = await _dbContext.StreamerEnrichmentQueues
-            .SingleOrDefaultAsync(entity => entity.StreamerId == streamerId, cancellationToken);
-
-        if (entry is null)
+        if (queueEntry is not null)
         {
-            return;
+            _dbContext.GameEnrichmentQueues.Remove(queueEntry);
         }
 
-        _dbContext.StreamerEnrichmentQueues.Remove(entry);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task RemoveGameFromEnrichmentQueueAsync(Guid gameId, CancellationToken cancellationToken = default)
-    {
-        var entry = await _dbContext.GameEnrichmentQueues
-            .SingleOrDefaultAsync(entity => entity.GameId == gameId, cancellationToken);
-
-        if (entry is null)
-        {
-            return;
-        }
-
-        _dbContext.GameEnrichmentQueues.Remove(entry);
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
