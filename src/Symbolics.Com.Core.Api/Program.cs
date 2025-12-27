@@ -49,7 +49,17 @@ builder.Services.Configure<QdrantOptions>(builder.Configuration.GetSection("Qdra
 builder.Services.Configure<TwitchDiscoveryOptions>(builder.Configuration.GetSection("TwitchDiscovery"));
 builder.Services.AddHttpClient<QdrantClient>();
 builder.Services.AddSingleton<IQdrantClient>(sp => sp.GetRequiredService<QdrantClient>());
-builder.Services.AddHttpClient<ITwitchService, TwitchService>()
+builder.Services.AddHttpClient("TwitchAuth");
+builder.Services.AddTransient<TwitchTokenHandler>();
+builder.Services.AddHttpClient<ITwitchService, TwitchService>((sp, client) =>
+    {
+        var options = sp.GetRequiredService<IOptionsMonitor<TwitchOptions>>().CurrentValue;
+        if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+        {
+            client.BaseAddress = new Uri(options.BaseUrl);
+        }
+    })
+    .AddHttpMessageHandler<TwitchTokenHandler>()
     .AddStandardResilienceHandler(options => ConfigureHttpResilience(options, "Twitch", TimeSpan.FromSeconds(15)));
 builder.Services.AddHttpClient<IAiService, GeminiAiService>()
     .AddStandardResilienceHandler(options => ConfigureHttpResilience(options, "Gemini", TimeSpan.FromSeconds(30)));
