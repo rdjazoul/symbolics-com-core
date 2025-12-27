@@ -81,13 +81,8 @@ builder.Services.AddHostedService(sp => {
 });
 builder.Services.AddHostedService(sp =>
 {
-    var scope = sp.CreateScope();
     return new TwitchEnrichmentWorker(
-        scope.ServiceProvider.GetRequiredService<ITwitchService>(),
-        scope.ServiceProvider.GetRequiredService<IAiService>(),
-        scope.ServiceProvider.GetRequiredService<IEmbeddingService>(),
-        scope.ServiceProvider.GetRequiredService<IQdrantClient>(),
-        scope.ServiceProvider.GetRequiredService<IWorkerRepository>(),
+        sp.GetRequiredService<IServiceScopeFactory>(),
         sp.GetRequiredService<IOptionsMonitor<TwitchEnrichmentOptions>>(),
         sp.GetRequiredService<ILogger<TwitchEnrichmentWorker>>()
     );

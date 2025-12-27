@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
 using Symbolics.Com.Core.Application.Workers;
@@ -116,6 +117,15 @@ public sealed class TwitchEnrichmentWorkerTests
         var workerRepository = new Mock<IWorkerRepository>();
         var logger = new Mock<ILogger<TwitchEnrichmentWorker>>();
 
+        var services = new ServiceCollection();
+        services.AddSingleton(twitchService.Object);
+        services.AddSingleton(aiService.Object);
+        services.AddSingleton(embeddingService.Object);
+        services.AddSingleton(qdrantClient.Object);
+        services.AddSingleton(workerRepository.Object);
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = new TestScopeFactory(serviceProvider);
+
         workerRepository.Setup(repository => repository.GetStreamerEnrichmentQueueAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(streamerQueue ?? []);
         workerRepository.Setup(repository => repository.GetGameEnrichmentQueueAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -154,11 +164,7 @@ public sealed class TwitchEnrichmentWorkerTests
         });
 
         var worker = new TwitchEnrichmentWorker(
-            twitchService.Object,
-            aiService.Object,
-            embeddingService.Object,
-            qdrantClient.Object,
-            workerRepository.Object,
+            scopeFactory,
             optionsMonitor,
             logger.Object);
 
@@ -185,5 +191,21 @@ public sealed class TwitchEnrichmentWorkerTests
         public T Get(string? name) => CurrentValue;
 
         public IDisposable? OnChange(Action<T, string?> listener) => null;
+    }
+
+    private sealed class TestScopeFactory(IServiceProvider serviceProvider) : IServiceScopeFactory
+    {
+        private readonly IServiceProvider _serviceProvider = serviceProvider;
+
+        public IServiceScope CreateScope() => new TestScope(_serviceProvider);
+
+        private sealed class TestScope(IServiceProvider serviceProvider) : IServiceScope
+        {
+            public IServiceProvider ServiceProvider { get; } = serviceProvider;
+
+            public void Dispose()
+            {
+            }
+        }
     }
 }

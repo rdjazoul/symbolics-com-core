@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 using Symbolics.Com.Core.Application.Workers;
 using Symbolics.Com.Core.Contract.ExternalServices;
 using Symbolics.Com.Core.Contract.Qdrant;
@@ -8,19 +9,11 @@ using Symbolics.Com.Core.Contract.Qdrant;
 namespace Symbolics.Com.Core.Infrastructure.Workers;
 
 public sealed class TwitchEnrichmentWorker(
-    ITwitchService twitchService,
-    IAiService aiService,
-    IEmbeddingService embeddingService,
-    IQdrantClient qdrantClient,
-    IWorkerRepository workerRepository,
+    IServiceScopeFactory scopeFactory,
     IOptionsMonitor<TwitchEnrichmentOptions> optionsMonitor,
     ILogger<TwitchEnrichmentWorker> logger) : BackgroundService
 {
-    private readonly ITwitchService _twitchService = twitchService;
-    private readonly IAiService _aiService = aiService;
-    private readonly IEmbeddingService _embeddingService = embeddingService;
-    private readonly IQdrantClient _qdrantClient = qdrantClient;
-    private readonly IWorkerRepository _workerRepository = workerRepository;
+    private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
     private readonly IOptionsMonitor<TwitchEnrichmentOptions> _optionsMonitor = optionsMonitor;
     private readonly ILogger<TwitchEnrichmentWorker> _logger = logger;
 
@@ -44,8 +37,10 @@ public sealed class TwitchEnrichmentWorker(
         _logger.LogInformation("Start new Twitch enrichment cycle");
 
         var options = _optionsMonitor.CurrentValue;
-        var streamerQueue = await _workerRepository.GetStreamerEnrichmentQueueAsync(options.StreamerMaxRetryCount, stoppingToken);
-        var gameQueue = await _workerRepository.GetGameEnrichmentQueueAsync(options.GameMaxRetryCount, stoppingToken);
+        using var scope = _scopeFactory.CreateScope();
+        var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
+        var streamerQueue = await workerRepository.GetStreamerEnrichmentQueueAsync(options.StreamerMaxRetryCount, stoppingToken);
+        var gameQueue = await workerRepository.GetGameEnrichmentQueueAsync(options.GameMaxRetryCount, stoppingToken);
 
         if (streamerQueue.Count == 0 && gameQueue.Count == 0)
         {
@@ -68,8 +63,15 @@ public sealed class TwitchEnrichmentWorker(
         await semaphore.WaitAsync(stoppingToken);
         try
         {
-            var twitchInfo = await _twitchService.GetStreamerInfos(item.TwitchLogin);
-            var aiDescriptions = await _aiService.GenerateStreamerDescription(twitchInfo.Description, twitchInfo.Login);
+            using var scope = _scopeFactory.CreateScope();
+            var twitchService = scope.ServiceProvider.GetRequiredService<ITwitchService>();
+            var aiService = scope.ServiceProvider.GetRequiredService<IAiService>();
+            var embeddingService = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
+            var qdrantClient = scope.ServiceProvider.GetRequiredService<IQdrantClient>();
+            var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
+
+            var twitchInfo = await twitchService.GetStreamerInfos(item.TwitchLogin);
+            var aiDescriptions = await aiService.GenerateStreamerDescription(twitchInfo.Description, twitchInfo.Login);
 
             var update = new StreamerEnrichmentUpdate(
                 item.StreamerId,
@@ -80,20 +82,22 @@ public sealed class TwitchEnrichmentWorker(
                 aiDescriptions.PersonaDescription,
                 DateTime.UtcNow);
 
-            await _workerRepository.UpdateStreamerEnrichmentAsync(update, stoppingToken);
+            await workerRepository.UpdateStreamerEnrichmentAsync(update, stoppingToken);
 
-            var embedding = await _embeddingService.GenerateEmbedding(aiDescriptions.VectorDescription);
-            if (!_qdrantClient.SaveStreamerDescription(item.StreamerId, embedding.Vector))
+            var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.VectorDescription);
+            if (!qdrantClient.SaveStreamerDescription(item.StreamerId, embedding.Vector))
             {
                 throw new InvalidOperationException($"Failed to save streamer embedding for {item.StreamerId}.");
             }
 
-            await _workerRepository.RemoveStreamerFromEnrichmentQueueAsync(item.StreamerId, stoppingToken);
+            await workerRepository.RemoveStreamerFromEnrichmentQueueAsync(item.StreamerId, stoppingToken);
         }
         catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
         {
             _logger.LogWarning(ex, "Failed to enrich streamer {StreamerId}.", item.StreamerId);
-            await _workerRepository.IncrementStreamerRetryAsync(item.StreamerId, stoppingToken);
+            using var scope = _scopeFactory.CreateScope();
+            var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
+            await workerRepository.IncrementStreamerRetryAsync(item.StreamerId, stoppingToken);
         }
         finally
         {
@@ -109,8 +113,15 @@ public sealed class TwitchEnrichmentWorker(
         await semaphore.WaitAsync(stoppingToken);
         try
         {
-            var twitchInfo = await _twitchService.GetGameInfos(item.TwitchId);
-            var aiDescriptions = await _aiService.GenerateGameDescription(twitchInfo.Name);
+            using var scope = _scopeFactory.CreateScope();
+            var twitchService = scope.ServiceProvider.GetRequiredService<ITwitchService>();
+            var aiService = scope.ServiceProvider.GetRequiredService<IAiService>();
+            var embeddingService = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
+            var qdrantClient = scope.ServiceProvider.GetRequiredService<IQdrantClient>();
+            var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
+
+            var twitchInfo = await twitchService.GetGameInfos(item.TwitchId);
+            var aiDescriptions = await aiService.GenerateGameDescription(twitchInfo.Name);
 
             var update = new GameEnrichmentUpdate(
                 item.GameId,
@@ -118,20 +129,22 @@ public sealed class TwitchEnrichmentWorker(
                 twitchInfo.Name,
                 aiDescriptions.Description);
 
-            await _workerRepository.UpdateGameEnrichmentAsync(update, stoppingToken);
+            await workerRepository.UpdateGameEnrichmentAsync(update, stoppingToken);
 
-            var embedding = await _embeddingService.GenerateEmbedding(aiDescriptions.Description);
-            if (!_qdrantClient.SaveGameDescription(item.GameId, embedding.Vector))
+            var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.Description);
+            if (!qdrantClient.SaveGameDescription(item.GameId, embedding.Vector))
             {
                 throw new InvalidOperationException($"Failed to save game embedding for {item.GameId}.");
             }
 
-            await _workerRepository.RemoveGameFromEnrichmentQueueAsync(item.GameId, stoppingToken);
+            await workerRepository.RemoveGameFromEnrichmentQueueAsync(item.GameId, stoppingToken);
         }
         catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
         {
             _logger.LogWarning(ex, "Failed to enrich game {GameId}.", item.GameId);
-            await _workerRepository.IncrementGameRetryAsync(item.GameId, stoppingToken);
+            using var scope = _scopeFactory.CreateScope();
+            var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
+            await workerRepository.IncrementGameRetryAsync(item.GameId, stoppingToken);
         }
         finally
         {
