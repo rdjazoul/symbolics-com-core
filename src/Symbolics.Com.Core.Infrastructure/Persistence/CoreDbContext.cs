@@ -75,6 +75,7 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
             entity.HasKey(e => e.TwitchId);
             entity.Property(e => e.TwitchId).HasMaxLength(200);
             entity.Property(e => e.TwitchLogin).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.TwitchName).HasMaxLength(250).IsRequired();
             entity.HasOne(e => e.Streamer)
                 .WithMany(e => e.TwitchMappings)
                 .HasForeignKey(e => e.StreamerId)
@@ -108,6 +109,7 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
             entity.ToTable("GamePlayed");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Language).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.TwitchStreamId).HasMaxLength(200).IsRequired();
             entity.HasOne(e => e.Streamer)
                 .WithMany(e => e.PlayedEntries)
                 .HasForeignKey(e => e.StreamerId)
@@ -118,6 +120,7 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(e => e.Date);
             entity.HasIndex(e => new { e.StreamerId, e.GameId, e.Date }).IsUnique();
+            entity.HasIndex(e => e.TwitchStreamId).IsUnique();
         });
 
         modelBuilder.Entity<Campaign>(entity =>

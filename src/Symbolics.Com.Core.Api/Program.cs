@@ -5,6 +5,8 @@ using Microsoft.Extensions.Http.Resilience;
 using Polly;
 using Serilog;
 using Symbolics.Com.Core.Application.Repositories;
+using Symbolics.Com.Core.Application.Services;
+using Symbolics.Com.Core.Application.Workers;
 using Symbolics.Com.Core.Contract.ExternalServices;
 using Symbolics.Com.Core.Contract.Qdrant;
 using Symbolics.Com.Core.Infrastructure.ExternalServices;
@@ -13,6 +15,8 @@ using Symbolics.Com.Core.Infrastructure.Logging;
 using Symbolics.Com.Core.Infrastructure.Persistence;
 using Symbolics.Com.Core.Infrastructure.Qdrant;
 using Symbolics.Com.Core.Infrastructure.Repositories;
+using Symbolics.Com.Core.Infrastructure.Services;
+using Symbolics.Com.Core.Infrastructure.Workers;
 using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -41,6 +45,7 @@ builder.Services.Configure<AiOptions>(builder.Configuration.GetSection("Ai"));
 builder.Services.Configure<LogOptions>(builder.Configuration.GetSection("Log"));
 builder.Services.Configure<TwitchOptions>(builder.Configuration.GetSection("Twitch"));
 builder.Services.Configure<QdrantOptions>(builder.Configuration.GetSection("Qdrant"));
+builder.Services.Configure<TwitchDiscoveryOptions>(builder.Configuration.GetSection("TwitchDiscovery"));
 builder.Services.AddHttpClient<QdrantClient>();
 builder.Services.AddSingleton<IQdrantClient>(sp => sp.GetRequiredService<QdrantClient>());
 builder.Services.AddHttpClient<ITwitchService, TwitchService>()
@@ -49,6 +54,9 @@ builder.Services.AddHttpClient<IAiService, GeminiAiService>()
     .AddStandardResilienceHandler(options => ConfigureHttpResilience(options, "Gemini", TimeSpan.FromSeconds(30)));
 builder.Services.AddHttpClient<IEmbeddingService, EmbeddingService>();
 builder.Services.AddScoped<IConsumptionTracker, ConsumptionTracker>();
+builder.Services.AddScoped<IWorkerRepository, WorkerRepository>();
+builder.Services.AddScoped<IStreamMaintenanceService, StreamMaintenanceService>();
+builder.Services.AddHostedService<TwitchDiscoveryWorker>();
 builder.Services.AddHostedService<QdrantCollectionInitializer>();
 builder.Services.AddHealthChecks()
     .AddNpgSql(

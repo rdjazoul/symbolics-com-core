@@ -8,6 +8,7 @@ public sealed class GamePlayed
     public int ViewerCount { get; set; }
     public DateTime Date { get; set; }
     public required string Language { get; set; }
+    public required string TwitchStreamId { get; set; }
 
     public Streamer? Streamer { get; set; }
     public Game? Game { get; set; }

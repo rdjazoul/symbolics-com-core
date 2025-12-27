@@ -10,6 +10,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Symbolics.Com.Core.Contract
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Symbolics.Com.Core.Infrastructure", "src\\Symbolics.Com.Core.Infrastructure\\Symbolics.Com.Core.Infrastructure.csproj", "{D7C1285B-FB7E-4D4B-B1DA-3B52FBC4D729}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Symbolics.Com.Core.Infrastructure.Tests", "src\\Symbolics.Com.Core.Infrastructure.Tests\\Symbolics.Com.Core.Infrastructure.Tests.csproj", "{C9EB4FCF-0C2F-4893-8FF2-AAF07B3B6E38}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,6 +34,10 @@ Global
 		{D7C1285B-FB7E-4D4B-B1DA-3B52FBC4D729}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D7C1285B-FB7E-4D4B-B1DA-3B52FBC4D729}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D7C1285B-FB7E-4D4B-B1DA-3B52FBC4D729}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C9EB4FCF-0C2F-4893-8FF2-AAF07B3B6E38}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C9EB4FCF-0C2F-4893-8FF2-AAF07B3B6E38}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C9EB4FCF-0C2F-4893-8FF2-AAF07B3B6E38}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C9EB4FCF-0C2F-4893-8FF2-AAF07B3B6E38}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
