@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using EFCore.BulkExtensions;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Symbolics.Com.Core.Application.Workers;
@@ -111,25 +112,45 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
             return;
         }
 
+        var now = DateTime.UtcNow;
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        await ExecuteBatchAsync(
-            "INSERT INTO \"Streamer\" (\"Id\", \"LastModificationDate\") VALUES ",
-            entries.Select(entry => new object[] { entry.StreamerId, now }),
-            " ON CONFLICT (\"Id\") DO NOTHING;",
-            cancellationToken);
+        var streamerEntities = entries.Select(entry => new Streamer
+        {
+            Id = entry.StreamerId,
+            LastModificationDate = now
+        }).ToList();
 
-        await ExecuteBatchAsync(
-            "INSERT INTO \"StreamerTwitch\" (\"TwitchId\", \"StreamerId\", \"TwitchLogin\", \"TwitchName\") VALUES ",
-            entries.Select(entry => new object[] { entry.TwitchId, entry.StreamerId, entry.TwitchLogin, entry.TwitchName }),
-            " ON CONFLICT (\"TwitchId\") DO NOTHING;",
-            cancellationToken);
+        var twitchEntities = entries.Select(entry => new StreamerTwitch
+        {
+            TwitchId = entry.TwitchId,
+            StreamerId = entry.StreamerId,
+            TwitchLogin = entry.TwitchLogin,
+            TwitchName = entry.TwitchName
+        }).ToList();
 
-        await ExecuteBatchAsync(
-            "INSERT INTO \"StreamerEnrichmentQueue\" (\"StreamerId\", \"Status\", \"RetryCount\", \"AddedAt\") VALUES ",
-            entries.Select(entry => new object[] { entry.StreamerId, EnrichmentStatus.Pending, 0, now }),
-            " ON CONFLICT (\"StreamerId\") DO NOTHING;",
-            cancellationToken);
+        var enrichmentEntities = entries.Select(entry => new StreamerEnrichmentQueue
+        {
+            StreamerId = entry.StreamerId,
+            Status = EnrichmentStatus.Pending,
+            RetryCount = 0,
+            AddedAt = now
+        }).ToList();
+
+        await _dbContext.BulkInsertAsync(
+            streamerEntities,
+            new BulkConfig { IgnoreDuplicates = true },
+            cancellationToken: cancellationToken);
+
+        await _dbContext.BulkInsertAsync(
+            twitchEntities,
+            new BulkConfig { IgnoreDuplicates = true },
+            cancellationToken: cancellationToken);
+
+        await _dbContext.BulkInsertAsync(
+            enrichmentEntities,
+            new BulkConfig { IgnoreDuplicates = true },
+            cancellationToken: cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
     }
@@ -145,23 +166,41 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
         var now = DateTime.UtcNow;
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        await ExecuteBatchAsync(
-            "INSERT INTO \"Game\" (\"Id\", \"Name\") VALUES ",
-            entries.Select(entry => new object[] { entry.GameId, entry.GameName }),
-            " ON CONFLICT (\"Id\") DO NOTHING;",
-            cancellationToken);
+        var gameEntities = entries.Select(entry => new Game
+        {
+            Id = entry.GameId,
+            Name = entry.GameName
+        }).ToList();
 
-        await ExecuteBatchAsync(
-            "INSERT INTO \"GameTwitch\" (\"TwitchId\", \"GameId\", \"TwitchName\") VALUES ",
-            entries.Select(entry => new object[] { entry.TwitchId, entry.GameId, entry.TwitchName }),
-            " ON CONFLICT (\"TwitchId\") DO NOTHING;",
-            cancellationToken);
+        var twitchEntities = entries.Select(entry => new GameTwitch
+        {
+            TwitchId = entry.TwitchId,
+            GameId = entry.GameId,
+            TwitchName = entry.TwitchName
+        }).ToList();
 
-        await ExecuteBatchAsync(
-            "INSERT INTO \"GameEnrichmentQueue\" (\"GameId\", \"Status\", \"RetryCount\", \"AddedAt\") VALUES ",
-            entries.Select(entry => new object[] { entry.GameId, EnrichmentStatus.Pending, 0, now }),
-            " ON CONFLICT (\"GameId\") DO NOTHING;",
-            cancellationToken);
+        var enrichmentEntities = entries.Select(entry => new GameEnrichmentQueue
+        {
+            GameId = entry.GameId,
+            Status = EnrichmentStatus.Pending,
+            RetryCount = 0,
+            AddedAt = now
+        }).ToList();
+
+        await _dbContext.BulkInsertAsync(
+            gameEntities,
+            new BulkConfig { IgnoreDuplicates = true },
+            cancellationToken: cancellationToken);
+
+        await _dbContext.BulkInsertAsync(
+            twitchEntities,
+            new BulkConfig { IgnoreDuplicates = true },
+            cancellationToken: cancellationToken);
+
+        await _dbContext.BulkInsertAsync(
+            enrichmentEntities,
+            new BulkConfig { IgnoreDuplicates = true },
+            cancellationToken: cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
     }
@@ -193,52 +232,21 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
             return;
         }
 
-        await ExecuteBatchAsync(
-            "INSERT INTO \"GamePlayed\" (\"Id\", \"StreamerId\", \"GameId\", \"ViewerCount\", \"Date\", \"Language\", \"TwitchStreamId\") VALUES ",
-            entries.Select(entry => new object[]
-            {
-                entry.GamePlayedId,
-                entry.StreamerId,
-                entry.GameId,
-                entry.ViewerCount,
-                entry.Date,
-                entry.Language,
-                entry.TwitchStreamId
-            }),
-            " ON CONFLICT (\"TwitchStreamId\") DO NOTHING;",
-            cancellationToken);
-    }
-
-    private async Task ExecuteBatchAsync(
-        string sqlPrefix,
-        IEnumerable<object[]> values,
-        string sqlSuffix,
-        CancellationToken cancellationToken)
-    {
-        var parameterIndex = 0;
-        var parameters = new List<NpgsqlParameter>();
-        var rows = new List<string>();
-
-        foreach (var rowValues in values)
+        var gamePlayEntities = entries.Select(entry => new GamePlayed
         {
-            var placeholders = new List<string>();
-            foreach (var value in rowValues)
-            {
-                var parameterName = $"p{parameterIndex++}";
-                placeholders.Add($"@{parameterName}");
-                parameters.Add(new NpgsqlParameter(parameterName, value ?? DBNull.Value));
-            }
+            Id = entry.GamePlayedId,
+            StreamerId = entry.StreamerId,
+            GameId = entry.GameId,
+            ViewerCount = entry.ViewerCount,
+            Date = entry.Date,
+            Language = entry.Language,
+            TwitchStreamId = entry.TwitchStreamId
+        }).ToList();
 
-            rows.Add($"({string.Join(", ", placeholders)})");
-        }
-
-        if (rows.Count == 0)
-        {
-            return;
-        }
-
-        var sql = $"{sqlPrefix}{string.Join(", ", rows)}{sqlSuffix}";
-        await _dbContext.Database.ExecuteSqlRawAsync(sql, parameters.ToArray(), cancellationToken);
+        await _dbContext.BulkInsertAsync(
+            gamePlayEntities,
+            new BulkConfig { IgnoreDuplicates = true },
+            cancellationToken: cancellationToken);
     }
 
     private static async Task EnsureConnectionOpenAsync(IDbConnection connection, CancellationToken cancellationToken)
