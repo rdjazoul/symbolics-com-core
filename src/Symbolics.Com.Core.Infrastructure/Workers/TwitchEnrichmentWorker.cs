@@ -13,6 +13,7 @@ public sealed class TwitchEnrichmentWorker(
     IOptionsMonitor<TwitchEnrichmentOptions> optionsMonitor,
     ILogger<TwitchEnrichmentWorker> logger) : BackgroundService
 {
+    private const string WorkerName = "Enrichment";
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
     private readonly IOptionsMonitor<TwitchEnrichmentOptions> _optionsMonitor = optionsMonitor;
     private readonly ILogger<TwitchEnrichmentWorker> _logger = logger;
@@ -39,6 +40,19 @@ public sealed class TwitchEnrichmentWorker(
         var options = _optionsMonitor.CurrentValue;
         using var scope = _scopeFactory.CreateScope();
         var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
+        var workerState = await workerRepository.GetWorkerStateAsync(WorkerName, stoppingToken);
+        if (workerState is null)
+        {
+            workerState = new WorkerStateDto(WorkerName, null, DateTime.UtcNow, true);
+            await workerRepository.UpdateWorkerStateAsync(workerState, stoppingToken);
+        }
+
+        if (!workerState.IsEnabled)
+        {
+            _logger.LogInformation("Worker {WorkerName} disabled via kill switch.", WorkerName);
+            return;
+        }
+
         var streamerQueue = await workerRepository.GetStreamerEnrichmentQueueAsync(options.StreamerMaxRetryCount, stoppingToken);
         var gameQueue = await workerRepository.GetGameEnrichmentQueueAsync(options.GameMaxRetryCount, stoppingToken);
 

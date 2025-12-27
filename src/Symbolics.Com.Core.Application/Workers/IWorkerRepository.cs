@@ -3,6 +3,7 @@ namespace Symbolics.Com.Core.Application.Workers;
 public interface IWorkerRepository
 {
     Task<WorkerStateDto?> GetWorkerStateAsync(string workerName, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<WorkerStateDto>> GetWorkerStatesAsync(CancellationToken cancellationToken = default);
     Task UpdateWorkerStateAsync(WorkerStateDto state, CancellationToken cancellationToken = default);
     Task<bool> TryAcquireLockAsync(string workerName, CancellationToken cancellationToken = default);
     Task ReleaseLockAsync(string workerName, CancellationToken cancellationToken = default);

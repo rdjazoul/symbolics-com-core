@@ -26,6 +26,7 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
             entity.Property(e => e.WorkerName).HasMaxLength(200);
             entity.Property(e => e.CurrentCursor).HasColumnType("text");
             entity.Property(e => e.LastCleanupDate);
+            entity.Property(e => e.IsEnabled).HasDefaultValue(true);
         });
 
         modelBuilder.Entity<Game>(entity =>

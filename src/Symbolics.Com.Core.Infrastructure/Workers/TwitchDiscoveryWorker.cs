@@ -15,7 +15,7 @@ public sealed class TwitchDiscoveryWorker(
     IOptionsMonitor<TwitchDiscoveryOptions> optionsMonitor,
     ILogger<TwitchDiscoveryWorker> logger) : BackgroundService
 {
-    private const string WorkerName = "TwitchCrawler";
+    private const string WorkerName = "TwitchDiscovery";
     private readonly ITwitchService _twitchService = twitchService;
     private readonly IWorkerRepository _workerRepository = workerRepository;
     private readonly IStreamMaintenanceService _streamMaintenanceService = streamMaintenanceService;
@@ -50,8 +50,18 @@ public sealed class TwitchDiscoveryWorker(
 
         try
         {
-            var workerState = await _workerRepository.GetWorkerStateAsync(WorkerName, stoppingToken)
-                ?? new WorkerStateDto(WorkerName, null, DateTime.UtcNow);
+            var workerState = await _workerRepository.GetWorkerStateAsync(WorkerName, stoppingToken);
+            if (workerState is null)
+            {
+                workerState = new WorkerStateDto(WorkerName, null, DateTime.UtcNow, true);
+                await UpdateWorkerStateAsync(workerState, stoppingToken);
+            }
+
+            if (!workerState.IsEnabled)
+            {
+                _logger.LogInformation("Worker {WorkerName} disabled via kill switch.", WorkerName);
+                return;
+            }
 
             var response = await GetStreamsWithRetryAsync(workerState.CurrentCursor, stoppingToken);
 

@@ -21,7 +21,20 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
 
         return state is null
             ? null
-            : new WorkerStateDto(state.WorkerName, state.CurrentCursor, state.LastCleanupDate);
+            : new WorkerStateDto(state.WorkerName, state.CurrentCursor, state.LastCleanupDate, state.IsEnabled);
+    }
+
+    public async Task<IReadOnlyList<WorkerStateDto>> GetWorkerStatesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.WorkerStates
+            .AsNoTracking()
+            .OrderBy(entity => entity.WorkerName)
+            .Select(entity => new WorkerStateDto(
+                entity.WorkerName,
+                entity.CurrentCursor,
+                entity.LastCleanupDate,
+                entity.IsEnabled))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task UpdateWorkerStateAsync(WorkerStateDto state, CancellationToken cancellationToken = default)
@@ -35,13 +48,15 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
             {
                 WorkerName = state.WorkerName,
                 CurrentCursor = state.CurrentCursor,
-                LastCleanupDate = state.LastCleanupDate
+                LastCleanupDate = state.LastCleanupDate,
+                IsEnabled = state.IsEnabled
             });
         }
         else
         {
             existing.CurrentCursor = state.CurrentCursor;
             existing.LastCleanupDate = state.LastCleanupDate;
+            existing.IsEnabled = state.IsEnabled;
             _dbContext.WorkerStates.Update(existing);
         }
 

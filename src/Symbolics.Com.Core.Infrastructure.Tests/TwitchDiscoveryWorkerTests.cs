@@ -17,7 +17,7 @@ public sealed class TwitchDiscoveryWorkerTests
     {
         var response = BuildResponse("cursor-123");
         var worker = BuildWorker(
-            workerState: new WorkerStateDto("TwitchCrawler", "cursor-123", DateTime.UtcNow),
+            workerState: new WorkerStateDto("TwitchDiscovery", "cursor-123", DateTime.UtcNow, true),
             response: response,
             existingStreamIds: Array.Empty<string>());
 
@@ -36,7 +36,7 @@ public sealed class TwitchDiscoveryWorkerTests
         var lastCleanup = DateTime.UtcNow.AddHours(-2);
         var response = BuildResponse("cursor-clean");
         var worker = BuildWorker(
-            workerState: new WorkerStateDto("TwitchCrawler", null, lastCleanup),
+            workerState: new WorkerStateDto("TwitchDiscovery", null, lastCleanup, true),
             response: response,
             existingStreamIds: Array.Empty<string>(),
             options: options);
@@ -55,7 +55,7 @@ public sealed class TwitchDiscoveryWorkerTests
     {
         var response = BuildResponse("cursor-add");
         var worker = BuildWorker(
-            workerState: new WorkerStateDto("TwitchCrawler", null, DateTime.UtcNow),
+            workerState: new WorkerStateDto("TwitchDiscovery", null, DateTime.UtcNow, true),
             response: response,
             existingStreamIds: Array.Empty<string>());
 
@@ -76,7 +76,7 @@ public sealed class TwitchDiscoveryWorkerTests
     {
         var response = BuildResponse("cursor-existing");
         var worker = BuildWorker(
-            workerState: new WorkerStateDto("TwitchCrawler", null, DateTime.UtcNow),
+            workerState: new WorkerStateDto("TwitchDiscovery", null, DateTime.UtcNow, true),
             response: response,
             existingStreamIds: new[] { response.Data[0].Id });
 
@@ -93,7 +93,7 @@ public sealed class TwitchDiscoveryWorkerTests
     {
         var response = BuildResponse("cursor-next");
         var worker = BuildWorker(
-            workerState: new WorkerStateDto("TwitchCrawler", "cursor-old", DateTime.UtcNow),
+            workerState: new WorkerStateDto("TwitchDiscovery", "cursor-old", DateTime.UtcNow, true),
             response: response,
             existingStreamIds: Array.Empty<string>());
 
@@ -139,9 +139,9 @@ public sealed class TwitchDiscoveryWorkerTests
         var streamMaintenanceService = new Mock<IStreamMaintenanceService>();
         var logger = new Mock<ILogger<TwitchDiscoveryWorker>>();
 
-        workerRepository.Setup(repository => repository.TryAcquireLockAsync("TwitchCrawler", It.IsAny<CancellationToken>()))
+        workerRepository.Setup(repository => repository.TryAcquireLockAsync("TwitchDiscovery", It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        workerRepository.Setup(repository => repository.GetWorkerStateAsync("TwitchCrawler", It.IsAny<CancellationToken>()))
+        workerRepository.Setup(repository => repository.GetWorkerStateAsync("TwitchDiscovery", It.IsAny<CancellationToken>()))
             .ReturnsAsync(workerState);
         workerRepository.Setup(repository => repository.GetExistingStreamIdsAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingStreamIds.ToHashSet());

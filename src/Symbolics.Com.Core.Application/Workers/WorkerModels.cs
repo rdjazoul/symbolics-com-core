@@ -1,6 +1,6 @@
 namespace Symbolics.Com.Core.Application.Workers;
 
-public sealed record WorkerStateDto(string WorkerName, string? CurrentCursor, DateTime LastCleanupDate);
+public sealed record WorkerStateDto(string WorkerName, string? CurrentCursor, DateTime LastCleanupDate, bool IsEnabled);
 
 public sealed record StreamerCreation(
     Guid StreamerId,
