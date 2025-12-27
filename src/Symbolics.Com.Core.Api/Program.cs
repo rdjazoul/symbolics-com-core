@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.Options;
 using Polly;
 using Serilog;
 using Symbolics.Com.Core.Application.Repositories;
@@ -56,7 +57,16 @@ builder.Services.AddHttpClient<IEmbeddingService, EmbeddingService>();
 builder.Services.AddScoped<IConsumptionTracker, ConsumptionTracker>();
 builder.Services.AddScoped<IWorkerRepository, WorkerRepository>();
 builder.Services.AddScoped<IStreamMaintenanceService, StreamMaintenanceService>();
-builder.Services.AddHostedService<TwitchDiscoveryWorker>();
+builder.Services.AddHostedService(sp => {
+    var scope = sp.CreateScope();
+    return new TwitchDiscoveryWorker(
+        scope.ServiceProvider.GetRequiredService<ITwitchService>(),
+        scope.ServiceProvider.GetRequiredService<IWorkerRepository>(),
+        scope.ServiceProvider.GetRequiredService<IStreamMaintenanceService>(),
+        sp.GetRequiredService<IOptionsMonitor<TwitchDiscoveryOptions>>(),
+        sp.GetRequiredService<ILogger<TwitchDiscoveryWorker>>()
+    );
+});
 builder.Services.AddHostedService<QdrantCollectionInitializer>();
 builder.Services.AddHealthChecks()
     .AddNpgSql(

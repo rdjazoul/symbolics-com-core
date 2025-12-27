@@ -39,6 +39,9 @@ public sealed class TwitchDiscoveryWorker(
 
     internal async Task DoWorkAsync(CancellationToken stoppingToken)
     {
+        _logger.LogInformation("Start new Twitch discovery Cycle");
+
+        var options = _optionsMonitor.CurrentValue;
         if (!await _workerRepository.TryAcquireLockAsync(WorkerName, stoppingToken))
         {
             _logger.LogInformation("Twitch discovery worker is locked. Skipping this cycle.");
@@ -93,8 +96,7 @@ public sealed class TwitchDiscoveryWorker(
         var streams = response.Data;
         if (streams.Count == 0)
         {
-            var updatedState = workerState with { CurrentCursor = response.Cursor };
-            await HandleCleanupAsync(updatedState, stoppingToken);
+            await HandleCleanupAsync(workerState with { CurrentCursor = response.Cursor }, stoppingToken);
             return;
         }
 
@@ -104,8 +106,7 @@ public sealed class TwitchDiscoveryWorker(
 
         if (newStreams.Count == 0)
         {
-            var updatedState = workerState with { CurrentCursor = response.Cursor };
-            await HandleCleanupAsync(updatedState, stoppingToken);
+            await HandleCleanupAsync(workerState with { CurrentCursor = response.Cursor }, stoppingToken);
             return;
         }
 

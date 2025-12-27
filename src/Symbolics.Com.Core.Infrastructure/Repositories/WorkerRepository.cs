@@ -139,17 +139,17 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
 
         await _dbContext.BulkInsertAsync(
             streamerEntities,
-            new BulkConfig { IgnoreDuplicates = true },
+            new BulkConfig { PreserveInsertOrder = true, SetOutputIdentity = true },
             cancellationToken: cancellationToken);
 
         await _dbContext.BulkInsertAsync(
             twitchEntities,
-            new BulkConfig { IgnoreDuplicates = true },
+            new BulkConfig { PreserveInsertOrder = true, SetOutputIdentity = true },
             cancellationToken: cancellationToken);
 
         await _dbContext.BulkInsertAsync(
             enrichmentEntities,
-            new BulkConfig { IgnoreDuplicates = true },
+            new BulkConfig { PreserveInsertOrder = true, SetOutputIdentity = true },
             cancellationToken: cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
@@ -189,17 +189,17 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
 
         await _dbContext.BulkInsertAsync(
             gameEntities,
-            new BulkConfig { IgnoreDuplicates = true },
+            new BulkConfig { PreserveInsertOrder = true, SetOutputIdentity = true },
             cancellationToken: cancellationToken);
 
         await _dbContext.BulkInsertAsync(
             twitchEntities,
-            new BulkConfig { IgnoreDuplicates = true },
+            new BulkConfig { PreserveInsertOrder = true, SetOutputIdentity = true },
             cancellationToken: cancellationToken);
 
         await _dbContext.BulkInsertAsync(
             enrichmentEntities,
-            new BulkConfig { IgnoreDuplicates = true },
+            new BulkConfig { PreserveInsertOrder = true, SetOutputIdentity = true },
             cancellationToken: cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
@@ -245,7 +245,7 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
 
         await _dbContext.BulkInsertAsync(
             gamePlayEntities,
-            new BulkConfig { IgnoreDuplicates = true },
+            new BulkConfig { PreserveInsertOrder = true, SetOutputIdentity = true },
             cancellationToken: cancellationToken);
     }
 
