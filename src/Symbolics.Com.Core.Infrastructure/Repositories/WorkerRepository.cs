@@ -249,6 +249,184 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
             cancellationToken: cancellationToken);
     }
 
+    public async Task<IReadOnlyList<StreamerEnrichmentQueueItem>> GetStreamerEnrichmentQueueAsync(
+        int maxRetryCount,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.StreamerEnrichmentQueues
+            .AsNoTracking()
+            .Where(entity => entity.RetryCount <= maxRetryCount)
+            .Where(entity => entity.Status == EnrichmentStatus.Pending || entity.Status == EnrichmentStatus.RetryDelay)
+            .Join(
+                _dbContext.StreamerTwitches.AsNoTracking(),
+                queue => queue.StreamerId,
+                twitch => twitch.StreamerId,
+                (queue, twitch) => new { queue.StreamerId, twitch.TwitchLogin })
+            .GroupBy(entry => entry.StreamerId)
+            .Select(group => new StreamerEnrichmentQueueItem(
+                group.Key,
+                group.Select(entry => entry.TwitchLogin).First()))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<GameEnrichmentQueueItem>> GetGameEnrichmentQueueAsync(
+        int maxRetryCount,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.GameEnrichmentQueues
+            .AsNoTracking()
+            .Where(entity => entity.RetryCount <= maxRetryCount)
+            .Where(entity => entity.Status == EnrichmentStatus.Pending || entity.Status == EnrichmentStatus.RetryDelay)
+            .Join(
+                _dbContext.GameTwitches.AsNoTracking(),
+                queue => queue.GameId,
+                twitch => twitch.GameId,
+                (queue, twitch) => new { queue.GameId, twitch.TwitchId })
+            .GroupBy(entry => entry.GameId)
+            .Select(group => new GameEnrichmentQueueItem(
+                group.Key,
+                group.Select(entry => entry.TwitchId).First()))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task UpdateStreamerEnrichmentAsync(StreamerEnrichmentUpdate update, CancellationToken cancellationToken = default)
+    {
+        var streamer = await _dbContext.Streamers
+            .SingleOrDefaultAsync(entity => entity.Id == update.StreamerId, cancellationToken);
+
+        if (streamer is null)
+        {
+            streamer = new Streamer
+            {
+                Id = update.StreamerId
+            };
+            _dbContext.Streamers.Add(streamer);
+        }
+
+        streamer.VectorDescription = update.VectorDescription;
+        streamer.PersonaDescription = update.PersonaDescription;
+        streamer.LastModificationDate = update.LastModificationDate;
+
+        var twitch = await _dbContext.StreamerTwitches
+            .SingleOrDefaultAsync(entity => entity.TwitchId == update.TwitchId, cancellationToken);
+
+        if (twitch is null)
+        {
+            _dbContext.StreamerTwitches.Add(new StreamerTwitch
+            {
+                TwitchId = update.TwitchId,
+                StreamerId = update.StreamerId,
+                TwitchLogin = update.TwitchLogin,
+                TwitchName = update.TwitchName
+            });
+        }
+        else
+        {
+            twitch.StreamerId = update.StreamerId;
+            twitch.TwitchLogin = update.TwitchLogin;
+            twitch.TwitchName = update.TwitchName;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateGameEnrichmentAsync(GameEnrichmentUpdate update, CancellationToken cancellationToken = default)
+    {
+        var game = await _dbContext.Games
+            .SingleOrDefaultAsync(entity => entity.Id == update.GameId, cancellationToken);
+
+        if (game is null)
+        {
+            game = new Game
+            {
+                Id = update.GameId,
+                Name = update.TwitchName
+            };
+            _dbContext.Games.Add(game);
+        }
+
+        game.Name = update.TwitchName;
+        game.VectorDescription = update.VectorDescription;
+
+        var twitch = await _dbContext.GameTwitches
+            .SingleOrDefaultAsync(entity => entity.TwitchId == update.TwitchId, cancellationToken);
+
+        if (twitch is null)
+        {
+            _dbContext.GameTwitches.Add(new GameTwitch
+            {
+                TwitchId = update.TwitchId,
+                GameId = update.GameId,
+                TwitchName = update.TwitchName
+            });
+        }
+        else
+        {
+            twitch.GameId = update.GameId;
+            twitch.TwitchName = update.TwitchName;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RemoveStreamerFromEnrichmentQueueAsync(Guid streamerId, CancellationToken cancellationToken = default)
+    {
+        var entry = await _dbContext.StreamerEnrichmentQueues
+            .SingleOrDefaultAsync(entity => entity.StreamerId == streamerId, cancellationToken);
+
+        if (entry is null)
+        {
+            return;
+        }
+
+        _dbContext.StreamerEnrichmentQueues.Remove(entry);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RemoveGameFromEnrichmentQueueAsync(Guid gameId, CancellationToken cancellationToken = default)
+    {
+        var entry = await _dbContext.GameEnrichmentQueues
+            .SingleOrDefaultAsync(entity => entity.GameId == gameId, cancellationToken);
+
+        if (entry is null)
+        {
+            return;
+        }
+
+        _dbContext.GameEnrichmentQueues.Remove(entry);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task IncrementStreamerRetryAsync(Guid streamerId, CancellationToken cancellationToken = default)
+    {
+        var entry = await _dbContext.StreamerEnrichmentQueues
+            .SingleOrDefaultAsync(entity => entity.StreamerId == streamerId, cancellationToken);
+
+        if (entry is null)
+        {
+            return;
+        }
+
+        entry.RetryCount += 1;
+        entry.Status = EnrichmentStatus.RetryDelay;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task IncrementGameRetryAsync(Guid gameId, CancellationToken cancellationToken = default)
+    {
+        var entry = await _dbContext.GameEnrichmentQueues
+            .SingleOrDefaultAsync(entity => entity.GameId == gameId, cancellationToken);
+
+        if (entry is null)
+        {
+            return;
+        }
+
+        entry.RetryCount += 1;
+        entry.Status = EnrichmentStatus.RetryDelay;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     private static async Task EnsureConnectionOpenAsync(IDbConnection connection, CancellationToken cancellationToken)
     {
         if (connection.State != ConnectionState.Open)

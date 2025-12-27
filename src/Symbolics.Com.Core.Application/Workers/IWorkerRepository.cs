@@ -12,4 +12,16 @@ public interface IWorkerRepository
     Task AddGamesAsync(IEnumerable<GameCreation> games, CancellationToken cancellationToken = default);
     Task<IReadOnlySet<string>> GetExistingStreamIdsAsync(IEnumerable<string> streamIds, CancellationToken cancellationToken = default);
     Task AddGamePlayedBatchAsync(IEnumerable<GamePlayedCreation> gamePlays, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<StreamerEnrichmentQueueItem>> GetStreamerEnrichmentQueueAsync(
+        int maxRetryCount,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<GameEnrichmentQueueItem>> GetGameEnrichmentQueueAsync(
+        int maxRetryCount,
+        CancellationToken cancellationToken = default);
+    Task UpdateStreamerEnrichmentAsync(StreamerEnrichmentUpdate update, CancellationToken cancellationToken = default);
+    Task UpdateGameEnrichmentAsync(GameEnrichmentUpdate update, CancellationToken cancellationToken = default);
+    Task RemoveStreamerFromEnrichmentQueueAsync(Guid streamerId, CancellationToken cancellationToken = default);
+    Task RemoveGameFromEnrichmentQueueAsync(Guid gameId, CancellationToken cancellationToken = default);
+    Task IncrementStreamerRetryAsync(Guid streamerId, CancellationToken cancellationToken = default);
+    Task IncrementGameRetryAsync(Guid gameId, CancellationToken cancellationToken = default);
 }

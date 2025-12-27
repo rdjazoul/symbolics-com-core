@@ -47,6 +47,7 @@ builder.Services.Configure<LogOptions>(builder.Configuration.GetSection("Log"));
 builder.Services.Configure<TwitchOptions>(builder.Configuration.GetSection("Twitch"));
 builder.Services.Configure<QdrantOptions>(builder.Configuration.GetSection("Qdrant"));
 builder.Services.Configure<TwitchDiscoveryOptions>(builder.Configuration.GetSection("TwitchDiscovery"));
+builder.Services.Configure<TwitchEnrichmentOptions>(builder.Configuration.GetSection("TwitchEnrichment"));
 builder.Services.AddHttpClient<QdrantClient>();
 builder.Services.AddSingleton<IQdrantClient>(sp => sp.GetRequiredService<QdrantClient>());
 builder.Services.AddHttpClient("TwitchAuth");
@@ -76,6 +77,19 @@ builder.Services.AddHostedService(sp => {
         scope.ServiceProvider.GetRequiredService<IStreamMaintenanceService>(),
         sp.GetRequiredService<IOptionsMonitor<TwitchDiscoveryOptions>>(),
         sp.GetRequiredService<ILogger<TwitchDiscoveryWorker>>()
+    );
+});
+builder.Services.AddHostedService(sp =>
+{
+    var scope = sp.CreateScope();
+    return new TwitchEnrichmentWorker(
+        scope.ServiceProvider.GetRequiredService<ITwitchService>(),
+        scope.ServiceProvider.GetRequiredService<IAiService>(),
+        scope.ServiceProvider.GetRequiredService<IEmbeddingService>(),
+        scope.ServiceProvider.GetRequiredService<IQdrantClient>(),
+        scope.ServiceProvider.GetRequiredService<IWorkerRepository>(),
+        sp.GetRequiredService<IOptionsMonitor<TwitchEnrichmentOptions>>(),
+        sp.GetRequiredService<ILogger<TwitchEnrichmentWorker>>()
     );
 });
 builder.Services.AddHostedService<QdrantCollectionInitializer>();
