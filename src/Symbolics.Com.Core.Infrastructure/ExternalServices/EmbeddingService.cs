@@ -10,18 +10,15 @@ public sealed class EmbeddingService : IEmbeddingService
     private readonly HttpClient _httpClient;
     private readonly IOptionsMonitor<AiOptions> _optionsMonitor;
     private readonly ILogger<EmbeddingService> _logger;
-    private readonly IConsumptionTracker _consumptionTracker;
 
     public EmbeddingService(
         HttpClient httpClient,
         IOptionsMonitor<AiOptions> optionsMonitor,
-        ILogger<EmbeddingService> logger,
-        IConsumptionTracker consumptionTracker)
+        ILogger<EmbeddingService> logger)
     {
         _httpClient = httpClient;
         _optionsMonitor = optionsMonitor;
         _logger = logger;
-        _consumptionTracker = consumptionTracker;
     }
 
     public async Task<EmbeddingResponse> GenerateEmbedding(string text)
@@ -35,6 +32,9 @@ public sealed class EmbeddingService : IEmbeddingService
 
         var dimension = options.EmbeddingDimensions > 0 ? options.EmbeddingDimensions : 1536;
         var vector = new float[dimension];
+
+        await Task.Delay(Random.Shared.Next(500, 2000));
+
         stopwatch.Stop();
 
         var metrics = new ConsumptionMetrics
@@ -44,14 +44,6 @@ public sealed class EmbeddingService : IEmbeddingService
             OutputUnits = dimension,
             ProcessingTimeMs = (int)stopwatch.ElapsedMilliseconds
         };
-
-        await _consumptionTracker.LogAsync(
-            service: "Embedding",
-            action: "Generate",
-            model: metrics.Model,
-            input: metrics.InputUnits,
-            output: metrics.OutputUnits,
-            elapsedMs: metrics.ProcessingTimeMs);
 
         return new EmbeddingResponse
         {

@@ -10,18 +10,14 @@ public sealed class GeminiAiService : IAiService
     private readonly HttpClient _httpClient;
     private readonly IOptionsMonitor<AiOptions> _optionsMonitor;
     private readonly ILogger<GeminiAiService> _logger;
-    private readonly IConsumptionTracker _consumptionTracker;
-
     public GeminiAiService(
         HttpClient httpClient,
         IOptionsMonitor<AiOptions> optionsMonitor,
-        ILogger<GeminiAiService> logger,
-        IConsumptionTracker consumptionTracker)
+        ILogger<GeminiAiService> logger)
     {
         _httpClient = httpClient;
         _optionsMonitor = optionsMonitor;
         _logger = logger;
-        _consumptionTracker = consumptionTracker;
     }
 
     public async Task<AiGameDescriptionResponse> GenerateGameDescription(string gameName)
@@ -36,6 +32,9 @@ public sealed class GeminiAiService : IAiService
                 gameName);
 
             var description = $"Placeholder description for game '{gameName}'.";
+
+            await Task.Delay(Random.Shared.Next(1000, 5000));
+
             stopwatch.Stop();
 
             var metrics = new ConsumptionMetrics
@@ -45,14 +44,6 @@ public sealed class GeminiAiService : IAiService
                 OutputUnits = description.Length,
                 ProcessingTimeMs = (int)stopwatch.ElapsedMilliseconds
             };
-
-            await _consumptionTracker.LogAsync(
-                service: "Gemini",
-                action: "GameDescription",
-                model: metrics.Model,
-                input: metrics.InputUnits,
-                output: metrics.OutputUnits,
-                elapsedMs: metrics.ProcessingTimeMs);
 
             return new AiGameDescriptionResponse
             {
@@ -85,6 +76,8 @@ public sealed class GeminiAiService : IAiService
                 PersonaDescription = $"Placeholder persona description derived from '{bio}'."
             };
 
+            await Task.Delay(Random.Shared.Next(1000, 5000));
+
             stopwatch.Stop();
 
             response.Consumption = new ConsumptionMetrics
@@ -94,14 +87,6 @@ public sealed class GeminiAiService : IAiService
                 OutputUnits = response.VectorDescription.Length + response.PersonaDescription.Length,
                 ProcessingTimeMs = (int)stopwatch.ElapsedMilliseconds
             };
-
-            await _consumptionTracker.LogAsync(
-                service: "Gemini",
-                action: "StreamerDescription",
-                model: response.Consumption.Model,
-                input: response.Consumption.InputUnits,
-                output: response.Consumption.OutputUnits,
-                elapsedMs: response.Consumption.ProcessingTimeMs);
 
             return response;
         }
