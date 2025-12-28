@@ -86,6 +86,6 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
             # Déploiement
-            docker compose pull symbolics-com-core
-            docker compose up -d symbolics-com-core
+            docker compose -f symbolics-com-core.yml pull
+            docker compose -f symbolics-com-core.yml up -d
             docker image prune -f
