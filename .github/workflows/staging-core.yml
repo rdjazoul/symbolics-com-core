@@ -61,10 +61,13 @@ jobs:
           username: ${{ secrets.STAGING_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            mkdir -p /app/staging
+            # On s'assure que le dossier appartient à ton utilisateur
+            sudo mkdir -p /app/staging
+            sudo chown -R $USER:$USER /app/staging
             cd /app/staging
 
-            # RÉCRÉATION DU FICHIER .ENV (Injection des secrets GitHub vers le serveur)
+            # RÉCRÉATION DU FICHIER .ENV
+            # On utilise > pour écraser et créer le fichier proprement
             echo "ASPNETCORE_ENVIRONMENT=${{ vars.ASPNETCORE_ENVIRONMENT }}" > .env
             echo "ASPNETCORE_URLS=${{ vars.ASPNETCORE_URLS }}" >> .env
             echo "CONNECTIONSTRINGS__COREDATABASE=${{ secrets.CONNECTIONSTRINGS__COREDATABASE }}" >> .env
@@ -79,10 +82,10 @@ jobs:
             echo "ADMIN__ADMINKEY=${{ secrets.ADMIN__ADMINKEY }}" >> .env
             echo "CORE_IMAGE_TAG=${{ github.ref_name }}" >> .env
 
-            # MISE À JOUR DOCKER
-            # On se connecte au registre pour pouvoir pull l'image privée
+            # Authentification pour GHCR
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
+            # Déploiement
             docker compose pull symbolics-com-core
             docker compose up -d symbolics-com-core
             docker image prune -f
