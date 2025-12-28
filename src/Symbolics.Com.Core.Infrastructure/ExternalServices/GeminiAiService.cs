@@ -132,6 +132,9 @@ public sealed class GeminiAiService : IAiService
                 throw new AiResponseFormatException("Gemini returned an empty streamer description payload.");
             }
 
+            var researchConsumption = BuildConsumptionMetrics(options.DescriptionModel, researchResponse.Usage, researchStopwatch);
+            response.Consumption = SumConsumption(researchConsumption, response.Consumption);
+
             return response;
         }
         catch (Exception ex) when (ex is not AiResponseFormatException)
@@ -270,6 +273,18 @@ public sealed class GeminiAiService : IAiService
             OutputUnits = usage?.CandidatesTokenCount ?? 0,
             CachedUnits = usage?.CachedContentTokenCount ?? 0,
             ProcessingTimeMs = (int)stopwatch.ElapsedMilliseconds
+        };
+    }
+
+    private static ConsumptionMetrics SumConsumption(ConsumptionMetrics first, ConsumptionMetrics second)
+    {
+        return new ConsumptionMetrics
+        {
+            Model = string.IsNullOrWhiteSpace(second.Model) ? first.Model : second.Model,
+            InputUnits = first.InputUnits + second.InputUnits,
+            OutputUnits = first.OutputUnits + second.OutputUnits,
+            CachedUnits = first.CachedUnits + second.CachedUnits,
+            ProcessingTimeMs = first.ProcessingTimeMs + second.ProcessingTimeMs
         };
     }
 

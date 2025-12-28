@@ -83,6 +83,35 @@ public sealed class GeminiAiServiceTests
     }
 
     [Fact]
+    public async Task GenerateStreamerDescription_AddsResearchConsumptionToStructuredConsumption()
+    {
+        var responses = new Queue<HttpResponseMessage>(new[]
+        {
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildGeminiEnvelope("research", promptTokens: 3, candidateTokens: 5, cachedTokens: 1))
+            },
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildGeminiEnvelope("{\"vector_description\":\"vector\",\"persona_description\":\"persona\",\"email\":null}", promptTokens: 7, candidateTokens: 11, cachedTokens: 2))
+            }
+        });
+        var handler = new StubHttpMessageHandler(_ => responses.Dequeue());
+        var service = BuildService(handler);
+
+        var response = await service.GenerateStreamerDescription(
+            "twitch-1",
+            "login",
+            "Display Name",
+            "https://twitch.tv/login",
+            "bio");
+
+        Assert.Equal(10, response.Consumption.InputUnits);
+        Assert.Equal(16, response.Consumption.OutputUnits);
+        Assert.Equal(3, response.Consumption.CachedUnits);
+    }
+
+    [Fact]
     public async Task GenerateStreamerDescription_PropagatesRateLimitErrors()
     {
         var handler = new StubHttpMessageHandler(request => new HttpResponseMessage((HttpStatusCode)429)
@@ -153,7 +182,11 @@ public sealed class GeminiAiServiceTests
         return new GeminiAiService(httpClient, optionsMonitor, logger.Object);
     }
 
-    private static string BuildGeminiEnvelope(string jsonContent)
+    private static string BuildGeminiEnvelope(
+        string jsonContent,
+        long promptTokens = 12,
+        long candidateTokens = 34,
+        long cachedTokens = 0)
     {
         var payload = new
         {
@@ -167,7 +200,12 @@ public sealed class GeminiAiServiceTests
                     }
                 }
             },
-            usageMetadata = new { promptTokenCount = 12, candidatesTokenCount = 34 }
+            usageMetadata = new
+            {
+                promptTokenCount = promptTokens,
+                candidatesTokenCount = candidateTokens,
+                cachedContentTokenCount = cachedTokens
+            }
         };
 
         return JsonSerializer.Serialize(payload);
