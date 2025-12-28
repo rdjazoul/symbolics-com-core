@@ -1,0 +1,91 @@
+name: CD - Symbolics Core Staging
+
+on:
+  push:
+    branches:
+      - "release/*"
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write # Nécessaire pour envoyer l'image sur le registre GitHub
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4.1.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # Jeton temporaire généré par GitHub
+
+      - name: Extract Metadata (Tags/Labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/rdjazoul/symbolics-com-core
+          tags: |
+            type=raw,value=staging # On garde un tag 'staging' fixe pour le serveur
+            type=ref,event=tag # On garde aussi le nom du tag git s'il existe
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          # INJECTION DE LA VERSION ICI
+          build-args: |
+            VERSION_ID=${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-24.04
+    environment: Staging
+    steps:
+      - name: SSH Remote Deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # On s'assure que le dossier appartient à ton utilisateur
+            sudo mkdir -p /app/staging
+            sudo chown -R $USER:$USER /app/staging
+            cd /app/staging
+
+            # RÉCRÉATION DU FICHIER .ENV
+            # On utilise > pour écraser et créer le fichier proprement
+            echo "ASPNETCORE_ENVIRONMENT=${{ vars.ASPNETCORE_ENVIRONMENT }}" > .env
+            echo "ASPNETCORE_URLS=${{ vars.ASPNETCORE_URLS }}" >> .env
+            echo "CONNECTIONSTRINGS__COREDATABASE=${{ secrets.CONNECTIONSTRINGS__COREDATABASE }}" >> .env
+            echo "QDRANT__URLHTTP=${{ secrets.QDRANT__URLHTTP }}" >> .env
+            echo "QDRANT__URLGRPC=${{ secrets.QDRANT__URLGRPC }}" >> .env
+            echo "GEMINI__DESCRIPTIONAPIKEY=${{ secrets.GEMINI__DESCRIPTIONAPIKEY }}" >> .env
+            echo "GEMINI__EMBEDDINGAPIKEY=${{ secrets.GEMINI__EMBEDDINGAPIKEY }}" >> .env
+            echo "TWITCH__CLIENTID=${{ secrets.TWITCH__CLIENTID }}" >> .env
+            echo "TWITCH__CLIENTSECRET=${{ secrets.TWITCH__CLIENTSECRET }}" >> .env
+            echo "LOG__SEQHEALTHURL=${{ secrets.LOG__SEQHEALTHURL }}" >> .env
+            echo "SERILOG__WRITETO__2__ARGS__SERVERURL=${{ secrets.SERILOG__WRITETO__2__ARGS__SERVERURL }}" >> .env
+            echo "ADMIN__ADMINKEY=${{ secrets.ADMIN__ADMINKEY }}" >> .env
+            echo "CORE_IMAGE_TAG=${{ github.ref_name }}" >> .env
+
+            # Authentification pour GHCR
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Déploiement
+            docker compose -f symbolics-com-core.yml pull
+            docker compose -f symbolics-com-core.yml up -d
+            docker image prune -f
