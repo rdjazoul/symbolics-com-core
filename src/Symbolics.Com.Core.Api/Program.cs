@@ -75,6 +75,7 @@ builder.Services.AddHttpClient<IEmbeddingService, EmbeddingService>();
 builder.Services.AddScoped<IConsumptionTracker, ConsumptionTracker>();
 builder.Services.AddScoped<IWorkerRepository, WorkerRepository>();
 builder.Services.AddScoped<IStreamMaintenanceService, StreamMaintenanceService>();
+builder.Services.AddScoped<ICampaignVectorizationService, CampaignVectorizationService>();
 builder.Services.AddHostedService(sp => {
     var scope = sp.CreateScope();
     return new TwitchDiscoveryWorker(
