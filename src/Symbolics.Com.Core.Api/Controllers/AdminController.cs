@@ -7,7 +7,7 @@ namespace Symbolics.Com.Core.Api.Controllers;
 
 [ApiController]
 [Route("api/admin/workers")]
-[AdminKey]
+[ApiKey(ApiKeyScope.Admin)]
 public sealed class AdminController(IWorkerRepository workerRepository) : ControllerBase
 {
     private readonly IWorkerRepository _workerRepository = workerRepository;

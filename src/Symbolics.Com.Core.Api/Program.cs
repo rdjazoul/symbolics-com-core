@@ -46,6 +46,7 @@ builder.Services.AddDbContext<CoreDbContext>(options => options.UseNpgsql(connec
 builder.Services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
 builder.Services.AddScoped<IStreamRepository, StreamRepository>();
 builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection("Admin"));
+builder.Services.Configure<ServiceSettings>(builder.Configuration.GetSection("Service"));
 builder.Services.Configure<GeminiOptions>(builder.Configuration.GetSection("Gemini"));
 builder.Services.Configure<LogOptions>(builder.Configuration.GetSection("Log"));
 builder.Services.Configure<TwitchOptions>(builder.Configuration.GetSection("Twitch"));
@@ -119,6 +120,14 @@ builder.Services.AddSwaggerGen(options =>
         Description = "Admin key header for protected endpoints."
     });
 
+    options.AddSecurityDefinition("ServiceKey", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.ApiKey,
+        In = ParameterLocation.Header,
+        Name = "X-Service-Key",
+        Description = "Service key header for protected endpoints."
+    });
+
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -128,6 +137,17 @@ builder.Services.AddSwaggerGen(options =>
                 {
                     Type = ReferenceType.SecurityScheme,
                     Id = "AdminKey"
+                }
+            },
+            Array.Empty<string>()
+        },
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "ServiceKey"
                 }
             },
             Array.Empty<string>()
