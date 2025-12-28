@@ -27,22 +27,25 @@ public sealed class QdrantClient : IQdrantClient
         _logger = logger;
     }
 
-    public bool SaveGameDescription(Guid gameId, float[] vector)
+    public bool SaveGameDescription(Guid gameId, float[] vector, string vectorDescription)
     {
         return SaveDescription(
             "GameVectors",
             "game_id",
             gameId,
-            vector);
+            vector,
+            vectorDescription);
     }
 
-    public bool SaveStreamerDescription(Guid streamerId, float[] vector)
+    public bool SaveStreamerDescription(Guid streamerId, float[] vector, string vectorDescription, string language)
     {
         return SaveDescription(
             "StreamerVectors",
             "streamer_id",
             streamerId,
-            vector);
+            vector,
+            vectorDescription,
+            language);
     }
 
     public async Task<bool> CheckConnectivityAsync(CancellationToken cancellationToken = default)
@@ -156,9 +159,11 @@ public sealed class QdrantClient : IQdrantClient
         string collectionName,
         string payloadKey,
         Guid entityId,
-        float[] vector)
+        float[] vector,
+        string vectorDescription,
+        string? language = null)
     {
-        return SaveDescriptionAsync(collectionName, payloadKey, entityId, vector)
+        return SaveDescriptionAsync(collectionName, payloadKey, entityId, vector, vectorDescription, language)
             .GetAwaiter()
             .GetResult();
     }
@@ -168,6 +173,8 @@ public sealed class QdrantClient : IQdrantClient
         string payloadKey,
         Guid entityId,
         float[] vector,
+        string vectorDescription,
+        string? language = null,
         CancellationToken cancellationToken = default)
     {
         if (vector is null || vector.Length == 0)
@@ -183,6 +190,18 @@ public sealed class QdrantClient : IQdrantClient
 
         var pointId = entityId.ToString();
         var url = $"{options.UrlHttp.TrimEnd('/')}/collections/{collectionName}/points?wait=true";
+        
+        var payloadDict = new Dictionary<string, string>
+        {
+            [payloadKey] = pointId,
+            ["vector_description"] = vectorDescription
+        };
+        
+        if (!string.IsNullOrWhiteSpace(language))
+        {
+            payloadDict["language"] = language;
+        }
+        
         var payload = new
         {
             points = new[]
@@ -191,10 +210,7 @@ public sealed class QdrantClient : IQdrantClient
                 {
                     id = pointId,
                     vector,
-                    payload = new Dictionary<string, string>
-                    {
-                        [payloadKey] = pointId
-                    }
+                    payload = payloadDict
                 }
             }
         };

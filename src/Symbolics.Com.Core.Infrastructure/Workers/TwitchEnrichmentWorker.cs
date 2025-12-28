@@ -111,7 +111,7 @@ public sealed class TwitchEnrichmentWorker(
                 embedding.Consumption.OutputUnits,
                 embedding.Consumption.CachedUnits,
                 embedding.Consumption.ProcessingTimeMs);
-            if (!qdrantClient.SaveStreamerDescription(item.StreamerId, embedding.Vector))
+            if (!qdrantClient.SaveStreamerDescription(item.StreamerId, embedding.Vector, aiDescriptions.VectorDescription, aiDescriptions.Language ?? string.Empty))
             {
                 throw new InvalidOperationException($"Failed to save streamer embedding for {item.StreamerId}.");
             }
@@ -178,7 +178,7 @@ public sealed class TwitchEnrichmentWorker(
                 embedding.Consumption.OutputUnits,
                 embedding.Consumption.CachedUnits,
                 embedding.Consumption.ProcessingTimeMs);
-            if (!qdrantClient.SaveGameDescription(item.GameId, embedding.Vector))
+            if (!qdrantClient.SaveGameDescription(item.GameId, embedding.Vector, aiDescriptions.VectorDescription))
             {
                 throw new InvalidOperationException($"Failed to save game embedding for {item.GameId}.");
             }

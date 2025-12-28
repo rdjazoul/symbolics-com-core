@@ -16,7 +16,7 @@ public sealed class QdrantClientTests
         var client = BuildClient(handler);
         var gameId = Guid.NewGuid();
 
-        var result = client.SaveGameDescription(gameId, [1.0f, 2.0f]);
+        var result = client.SaveGameDescription(gameId, [1.0f, 2.0f], "");
 
         Assert.True(result);
         Assert.NotNull(handler.LastRequestContent);
@@ -33,7 +33,7 @@ public sealed class QdrantClientTests
         var client = BuildClient(handler);
         var streamerId = Guid.NewGuid();
 
-        var result = client.SaveStreamerDescription(streamerId, [1.0f, 2.0f]);
+        var result = client.SaveStreamerDescription(streamerId, [1.0f, 2.0f], "", "");
 
         Assert.True(result);
         Assert.NotNull(handler.LastRequestContent);

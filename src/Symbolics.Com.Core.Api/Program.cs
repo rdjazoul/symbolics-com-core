@@ -46,7 +46,6 @@ builder.Services.AddDbContext<CoreDbContext>(options => options.UseNpgsql(connec
 builder.Services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
 builder.Services.AddScoped<IStreamRepository, StreamRepository>();
 builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection("Admin"));
-builder.Services.Configure<AiOptions>(builder.Configuration.GetSection("Ai"));
 builder.Services.Configure<GeminiOptions>(builder.Configuration.GetSection("Gemini"));
 builder.Services.Configure<LogOptions>(builder.Configuration.GetSection("Log"));
 builder.Services.Configure<TwitchOptions>(builder.Configuration.GetSection("Twitch"));

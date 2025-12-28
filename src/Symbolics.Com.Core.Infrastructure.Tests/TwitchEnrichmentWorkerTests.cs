@@ -80,7 +80,7 @@ public sealed class TwitchEnrichmentWorkerTests
             "bio"),
             Times.Once);
         worker.EmbeddingService.Verify(service => service.GenerateEmbedding("vector"), Times.Once);
-        worker.QdrantClient.Verify(client => client.SaveStreamerDescription(streamerItem.StreamerId, embeddingResponse.Vector), Times.Once);
+        worker.QdrantClient.Verify(client => client.SaveStreamerDescription(streamerItem.StreamerId, embeddingResponse.Vector, "vector", "fr"), Times.Once);
         worker.WorkerRepository.Verify(repository => repository.FinalizeStreamerEnrichmentAsync(
             It.IsAny<StreamerEnrichmentUpdate>(),
             It.IsAny<CancellationToken>()),
@@ -150,7 +150,7 @@ public sealed class TwitchEnrichmentWorkerTests
         worker.TwitchService.Verify(service => service.GetGameInfos("game-1"), Times.Once);
         worker.AiService.Verify(service => service.GenerateGameDescription("game-1", "Game Name"), Times.Once);
         worker.EmbeddingService.Verify(service => service.GenerateEmbedding("game vector"), Times.Once);
-        worker.QdrantClient.Verify(client => client.SaveGameDescription(gameItem.GameId, embeddingResponse.Vector), Times.Once);
+        worker.QdrantClient.Verify(client => client.SaveGameDescription(gameItem.GameId, embeddingResponse.Vector, "game vector"), Times.Once);
         worker.WorkerRepository.Verify(repository => repository.FinalizeGameEnrichmentAsync(
             It.IsAny<GameEnrichmentUpdate>(),
             It.IsAny<CancellationToken>()),
@@ -230,9 +230,9 @@ public sealed class TwitchEnrichmentWorkerTests
             .ReturnsAsync(aiGameResponse ?? new AiGameDescriptionResponse());
         embeddingService.Setup(service => service.GenerateEmbedding(It.IsAny<string>()))
             .ReturnsAsync(embeddingResponse ?? new EmbeddingResponse());
-        qdrantClient.Setup(client => client.SaveStreamerDescription(It.IsAny<Guid>(), It.IsAny<float[]>()))
+        qdrantClient.Setup(client => client.SaveStreamerDescription(It.IsAny<Guid>(), It.IsAny<float[]>(), It.IsAny<string>(), It.IsAny<string>()))
             .Returns(true);
-        qdrantClient.Setup(client => client.SaveGameDescription(It.IsAny<Guid>(), It.IsAny<float[]>()))
+        qdrantClient.Setup(client => client.SaveGameDescription(It.IsAny<Guid>(), It.IsAny<float[]>(), It.IsAny<string>()))
             .Returns(true);
 
         var optionsMonitor = new TestOptionsMonitor<TwitchEnrichmentOptions>(new TwitchEnrichmentOptions

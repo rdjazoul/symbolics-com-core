@@ -25,7 +25,7 @@ public sealed class GeminiAiService : IAiService
     };
 
     private readonly HttpClient _httpClient;
-    private readonly IOptionsMonitor<AiOptions> _optionsMonitor;
+    private readonly IOptionsMonitor<GeminiOptions> _optionsMonitor;
     private readonly ILogger<GeminiAiService> _logger;
     private readonly string _gameSystemPrompt;
     private readonly string _gameUserPromptTemplate;
@@ -35,7 +35,7 @@ public sealed class GeminiAiService : IAiService
 
     public GeminiAiService(
         HttpClient httpClient,
-        IOptionsMonitor<AiOptions> optionsMonitor,
+        IOptionsMonitor<GeminiOptions> optionsMonitor,
         ILogger<GeminiAiService> logger)
     {
         _httpClient = httpClient;
@@ -147,7 +147,7 @@ public sealed class GeminiAiService : IAiService
     }
 
     private async Task<TResponse> SendRequestAsync<TResponse>(
-        AiOptions options,
+        GeminiOptions options,
         JsonObject requestBody,
         System.Diagnostics.Stopwatch stopwatch)
         where TResponse : class
@@ -219,7 +219,7 @@ public sealed class GeminiAiService : IAiService
     }
 
     private async Task<GeminiTextResponse> SendTextRequestAsync(
-        AiOptions options,
+        GeminiOptions options,
         JsonObject requestBody,
         System.Diagnostics.Stopwatch stopwatch)
     {
@@ -288,16 +288,16 @@ public sealed class GeminiAiService : IAiService
         };
     }
 
-    private static string BuildRequestUri(AiOptions options)
+    private static string BuildRequestUri(GeminiOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.DescriptionBaseUrl))
         {
-            throw new InvalidOperationException("AiOptions.DescriptionBaseUrl is not configured.");
+            throw new InvalidOperationException("GeminiOptions.DescriptionBaseUrl is not configured.");
         }
 
         if (string.IsNullOrWhiteSpace(options.DescriptionModel))
         {
-            throw new InvalidOperationException("AiOptions.DescriptionModel is not configured.");
+            throw new InvalidOperationException("GeminiOptions.DescriptionModel is not configured.");
         }
 
         var baseUrl = options.DescriptionBaseUrl.TrimEnd('/');
@@ -306,7 +306,7 @@ public sealed class GeminiAiService : IAiService
 
     private static JsonObject BuildGameRequest(string systemPrompt, string userPrompt)
     {
-        return BuildTextRequest(systemPrompt, userPrompt);
+        return BuildTextRequest(systemPrompt, userPrompt, includeGoogleSearch: true, includeUrlContext: true);
     }
 
     private static JsonObject BuildStreamerRequest(string systemPrompt, string userPrompt)
@@ -341,7 +341,7 @@ public sealed class GeminiAiService : IAiService
 
     private static JsonObject BuildStreamerResearchRequest(string systemPrompt, string userPrompt)
     {
-        return BuildTextRequest(systemPrompt, userPrompt);
+        return BuildTextRequest(systemPrompt, userPrompt, includeGoogleSearch: false, includeUrlContext: true);
     }
 
     private static JsonObject BuildStructuredRequest(string systemPrompt, string userPrompt, JsonObject schema)
@@ -366,9 +366,9 @@ public sealed class GeminiAiService : IAiService
         };
     }
 
-    private static JsonObject BuildTextRequest(string systemPrompt, string userPrompt)
+    private static JsonObject BuildTextRequest(string systemPrompt, string userPrompt, bool includeGoogleSearch = false, bool includeUrlContext = false)
     {
-        return new JsonObject
+        var request = new JsonObject
         {
             ["systemInstruction"] = new JsonObject
             {
@@ -380,14 +380,28 @@ public sealed class GeminiAiService : IAiService
                     ["role"] = "user",
                     ["parts"] = new JsonArray(new JsonObject { ["text"] = userPrompt })
                 }),
-            ["tools"] = new JsonArray(
-                new JsonObject { ["googleSearch"] = new JsonObject() },
-                new JsonObject { ["urlContext"] = new JsonObject() }),
             ["generationConfig"] = new JsonObject
             {
                 ["responseMimeType"] = "text/plain"
             }
         };
+
+        var tools = new JsonArray();
+        if (includeGoogleSearch)
+        {
+            tools.Add(new JsonObject { ["googleSearch"] = new JsonObject() });
+        }
+        if (includeUrlContext)
+        {
+            tools.Add(new JsonObject { ["urlContext"] = new JsonObject() });
+        }
+        
+        if (tools.Count > 0)
+        {
+            request["tools"] = tools;
+        }
+
+        return request;
     }
 
     private static string? NormalizeEmail(string? email)

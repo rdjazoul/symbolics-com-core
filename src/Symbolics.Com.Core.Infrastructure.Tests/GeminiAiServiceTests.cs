@@ -170,13 +170,13 @@ public sealed class GeminiAiServiceTests
     private static GeminiAiService BuildService(StubHttpMessageHandler handler)
     {
         var httpClient = new HttpClient(handler);
-        var options = new AiOptions
+        var options = new GeminiOptions
         {
             DescriptionBaseUrl = "https://example.com/v1beta",
             DescriptionApiKey = "key",
             DescriptionModel = "gemini-1.5-pro"
         };
-        var optionsMonitor = new TestOptionsMonitor<AiOptions>(options);
+        var optionsMonitor = new TestOptionsMonitor<GeminiOptions>(options);
         var logger = new Mock<ILogger<GeminiAiService>>();
 
         return new GeminiAiService(httpClient, optionsMonitor, logger.Object);

@@ -11,8 +11,8 @@ Set the following keys when configuring the service (e.g. in systemd `Environmen
 | Qdrant gRPC endpoint | `Qdrant__UrlGrpc` |
 | Serilog Seq URL | `Serilog__WriteTo__2__Args__serverUrl` |
 | Serilog Seq health URL | `Log__SeqHealthUrl` |
-| AI description API key | `Ai__DescriptionApiKey` |
-| AI embedding API key | `Ai__EmbeddingApiKey` |
+| Gemini description API key | `Gemini__DescriptionApiKey` |
+| Gemini embedding API key | `Gemini__EmbeddingApiKey` |
 | Twitch client ID | `Twitch__ClientId` |
 | Twitch client secret | `Twitch__ClientSecret` |
 | Admin authentication key | `Admin__AdminKey` |
