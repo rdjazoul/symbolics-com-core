@@ -162,7 +162,10 @@ public sealed class GeminiAiService : IAiService
         
         // Log request details
         _logger.LogInformation("Sending Gemini API request: {Method} {Uri}", request.Method, requestUri);
-        _logger.LogInformation("Request headers: {@Headers}", request.Headers.ToDictionary(h => h.Key, h => h.Value));
+        _logger.LogInformation("Request headers: {@Headers}", request.Headers.ToDictionary(h => h.Key, h => 
+            string.Join(", ", h.Value.Select(v => 
+                string.IsNullOrWhiteSpace(v) ? v : 
+                v.Length > 4 ? $"...{v[^4..]}" : v))));
         _logger.LogInformation("Request body: {RequestBody}", requestBody.ToString());
         
         var response = await _httpClient.SendAsync(request);
@@ -232,7 +235,10 @@ public sealed class GeminiAiService : IAiService
         request.Headers.Add("x-goog-api-key", options.DescriptionApiKey);
 
         _logger.LogInformation("Sending Gemini API request: {Method} {Uri}", request.Method, requestUri);
-        _logger.LogInformation("Request headers: {@Headers}", request.Headers.ToDictionary(h => h.Key, h => h.Value));
+                _logger.LogInformation("Request headers: {@Headers}", request.Headers.ToDictionary(h => h.Key, h => 
+            string.Join(", ", h.Value.Select(v => 
+                string.IsNullOrWhiteSpace(v) ? v : 
+                v.Length > 4 ? $"...{v[^4..]}" : v))));
         _logger.LogInformation("Request body: {RequestBody}", requestBody.ToString());
 
         var response = await _httpClient.SendAsync(request);
