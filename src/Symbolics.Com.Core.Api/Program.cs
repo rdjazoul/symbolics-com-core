@@ -160,6 +160,14 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.MapControllers();
+app.MapGet("/api/system/version", (IConfiguration config) =>
+{
+    return Results.Ok(new
+    {
+        Version = config["APP_VERSION"] ?? "Unknown",
+        Environment = config["ASPNETCORE_ENVIRONMENT"]
+    });
+}).WithTags("System");
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     ResponseWriter = async (context, report) =>
