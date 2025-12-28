@@ -116,6 +116,7 @@ public sealed class TwitchEnrichmentWorker(
                 aiDescriptions.VectorDescription,
                 aiDescriptions.PersonaDescription,
                 aiDescriptions.Email,
+                aiDescriptions.Language,
                 DateTime.UtcNow);
 
             await workerRepository.FinalizeStreamerEnrichmentAsync(update, stoppingToken);

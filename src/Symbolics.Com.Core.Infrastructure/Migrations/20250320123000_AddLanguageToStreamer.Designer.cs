@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Symbolics.Com.Core.Infrastructure.Persistence;
@@ -11,9 +12,10 @@ using Symbolics.Com.Core.Infrastructure.Persistence;
 namespace Symbolics.Com.Core.Infrastructure.Migrations
 {
     [DbContext(typeof(CoreDbContext))]
-    partial class CoreDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250320123000_AddLanguageToStreamer")]
+    partial class AddLanguageToStreamer : Migration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

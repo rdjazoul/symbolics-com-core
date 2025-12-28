@@ -13,5 +13,8 @@ public sealed class AiStreamerDescriptionsResponse
     [JsonPropertyName("email")]
     public string? Email { get; set; }
 
+    [JsonPropertyName("language")]
+    public string? Language { get; set; }
+
     public ConsumptionMetrics Consumption { get; set; } = new();
 }

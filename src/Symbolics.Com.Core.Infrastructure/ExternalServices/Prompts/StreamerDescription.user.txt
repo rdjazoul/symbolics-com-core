@@ -5,5 +5,6 @@ Notes de recherche précédentes :
 1. Produit une description pour recherche vectorielle (thématiques, genres de prédilection, ton du stream, communauté).
 2. Produit un résumé de sa personnalité pour une approche personnalisée par email.
 3. Trouve son email de contact si présent (y compris sous forme "name [at] domain.com") et normalise-le.
+4. Détecte la langue principale du streamer à partir du texte de description et renvoie le code ISO ("fr", "en", etc.).
 Répond exclusivement au format JSON suivant :
-{"vector_description":"...","persona_description":"...","email":"string ou null"}
+{"vector_description":"...","persona_description":"...","email":"string ou null","language":"code ISO ou null"}

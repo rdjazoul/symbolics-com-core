@@ -40,6 +40,7 @@ public sealed class TwitchEnrichmentWorkerTests
             VectorDescription = "vector",
             PersonaDescription = "persona",
             Email = "streamer@example.com",
+            Language = "fr",
             Consumption = new ConsumptionMetrics
             {
                 Model = "gemini",

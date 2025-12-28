@@ -71,6 +71,7 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
             entity.Property(e => e.VectorDescription).HasColumnType("text");
             entity.Property(e => e.PersonaDescription).HasColumnType("text");
             entity.Property(e => e.Email).HasMaxLength(320);
+            entity.Property(e => e.Language).HasMaxLength(20);
             entity.Property(e => e.IsReady).HasDefaultValue(false);
             entity.HasIndex(e => e.Email);
             entity.HasIndex(e => e.Id)
