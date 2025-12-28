@@ -18,6 +18,7 @@ public sealed class GeminiAiService : IAiService
     private const string GameUserPromptFile = "GameDescription.user.txt";
     private const string StreamerSystemPromptFile = "StreamerDescription.system.txt";
     private const string StreamerUserPromptFile = "StreamerDescription.user.txt";
+    private const string StreamerResearchPromptFile = "StreamerResearch.user.txt";
     private static readonly JsonSerializerOptions ResponseSerializerOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
@@ -30,6 +31,7 @@ public sealed class GeminiAiService : IAiService
     private readonly string _gameUserPromptTemplate;
     private readonly string _streamerSystemPrompt;
     private readonly string _streamerUserPromptTemplate;
+    private readonly string _streamerResearchPromptTemplate;
 
     public GeminiAiService(
         HttpClient httpClient,
@@ -43,6 +45,7 @@ public sealed class GeminiAiService : IAiService
         _gameUserPromptTemplate = LoadPrompt(GameUserPromptFile);
         _streamerSystemPrompt = LoadPrompt(StreamerSystemPromptFile);
         _streamerUserPromptTemplate = LoadPrompt(StreamerUserPromptFile);
+        _streamerResearchPromptTemplate = LoadPrompt(StreamerResearchPromptFile);
     }
 
     public async Task<AiGameDescriptionResponse> GenerateGameDescription(string twitchGameId, string gameName)
@@ -61,13 +64,17 @@ public sealed class GeminiAiService : IAiService
                 gameName,
                 twitchGameId);
 
-            var response = await SendRequestAsync<AiGameDescriptionResponse>(options, requestBody, stopwatch);
-            if (string.IsNullOrWhiteSpace(response.VectorDescription))
+            var textResponse = await SendTextRequestAsync(options, requestBody, stopwatch);
+            if (string.IsNullOrWhiteSpace(textResponse.Text))
             {
                 throw new AiResponseFormatException("Gemini returned an empty vector description for the game.");
             }
 
-            return response;
+            return new AiGameDescriptionResponse
+            {
+                VectorDescription = textResponse.Text,
+                Consumption = BuildConsumptionMetrics(options.DescriptionModel, textResponse.Usage, stopwatch)
+            };
         }
         catch (Exception ex) when (ex is not AiResponseFormatException)
         {
@@ -85,15 +92,31 @@ public sealed class GeminiAiService : IAiService
         string rawDescription)
     {
         var options = _optionsMonitor.CurrentValue;
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var researchStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        System.Diagnostics.Stopwatch? structuredStopwatch = null;
         try
         {
-            var userPrompt = _streamerUserPromptTemplate
+            var researchPrompt = _streamerResearchPromptTemplate
                 .Replace("{twitchId}", twitchId, StringComparison.Ordinal)
                 .Replace("{login}", login, StringComparison.Ordinal)
                 .Replace("{displayName}", displayName, StringComparison.Ordinal)
                 .Replace("{url}", url, StringComparison.Ordinal)
                 .Replace("{rawDescription}", rawDescription, StringComparison.Ordinal);
+            var researchRequest = BuildStreamerResearchRequest(_streamerSystemPrompt, researchPrompt);
+            var researchResponse = await SendTextRequestAsync(options, researchRequest, researchStopwatch);
+            if (string.IsNullOrWhiteSpace(researchResponse.Text))
+            {
+                throw new AiResponseFormatException("Gemini returned an empty streamer research payload.");
+            }
+
+            structuredStopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var userPrompt = _streamerUserPromptTemplate
+                .Replace("{twitchId}", twitchId, StringComparison.Ordinal)
+                .Replace("{login}", login, StringComparison.Ordinal)
+                .Replace("{displayName}", displayName, StringComparison.Ordinal)
+                .Replace("{url}", url, StringComparison.Ordinal)
+                .Replace("{rawDescription}", rawDescription, StringComparison.Ordinal)
+                .Replace("{research}", researchResponse.Text, StringComparison.Ordinal);
             var requestBody = BuildStreamerRequest(_streamerSystemPrompt, userPrompt);
 
             _logger.LogInformation(
@@ -101,7 +124,7 @@ public sealed class GeminiAiService : IAiService
                 login,
                 twitchId);
 
-            var response = await SendRequestAsync<AiStreamerDescriptionsResponse>(options, requestBody, stopwatch);
+            var response = await SendRequestAsync<AiStreamerDescriptionsResponse>(options, requestBody, structuredStopwatch);
             response.Email = NormalizeEmail(response.Email);
 
             if (string.IsNullOrWhiteSpace(response.VectorDescription) || string.IsNullOrWhiteSpace(response.PersonaDescription))
@@ -109,11 +132,15 @@ public sealed class GeminiAiService : IAiService
                 throw new AiResponseFormatException("Gemini returned an empty streamer description payload.");
             }
 
+            var researchConsumption = BuildConsumptionMetrics(options.DescriptionModel, researchResponse.Usage, researchStopwatch);
+            response.Consumption = SumConsumption(researchConsumption, response.Consumption);
+
             return response;
         }
         catch (Exception ex) when (ex is not AiResponseFormatException)
         {
-            stopwatch.Stop();
+            researchStopwatch.Stop();
+            structuredStopwatch?.Stop();
             _logger.LogError(ex, "Failed to generate streamer descriptions for {Login}.", login);
             throw;
         }
@@ -191,6 +218,49 @@ public sealed class GeminiAiService : IAiService
         return parsed;
     }
 
+    private async Task<GeminiTextResponse> SendTextRequestAsync(
+        AiOptions options,
+        JsonObject requestBody,
+        System.Diagnostics.Stopwatch stopwatch)
+    {
+        var requestUri = BuildRequestUri(options);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, requestUri)
+        {
+            Content = JsonContent.Create(requestBody, typeof(JsonObject), new MediaTypeHeaderValue("application/json"), ResponseSerializerOptions)
+        };
+        request.Headers.Add("x-goog-api-key", options.DescriptionApiKey);
+
+        _logger.LogInformation("Sending Gemini API request: {Method} {Uri}", request.Method, requestUri);
+        _logger.LogInformation("Request headers: {@Headers}", request.Headers.ToDictionary(h => h.Key, h => h.Value));
+        _logger.LogInformation("Request body: {RequestBody}", requestBody.ToString());
+
+        var response = await _httpClient.SendAsync(request);
+
+        _logger.LogInformation("Received Gemini API response: {StatusCode} {ReasonPhrase}", response.StatusCode, response.ReasonPhrase);
+        _logger.LogInformation("Response headers: {@Headers}", response.Headers.ToDictionary(h => h.Key, h => h.Value));
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Gemini API error response: {ErrorContent}", errorContent);
+        }
+
+        response.EnsureSuccessStatusCode();
+
+        var payload = await response.Content.ReadAsStringAsync();
+        var envelope = JsonSerializer.Deserialize<GeminiResponse>(payload, ResponseSerializerOptions);
+        var text = envelope?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new AiResponseFormatException("Gemini response did not contain any text payload.");
+        }
+
+        stopwatch.Stop();
+
+        return new GeminiTextResponse(text, envelope?.UsageMetadata);
+    }
+
     private static ConsumptionMetrics BuildConsumptionMetrics(
         string model,
         GeminiUsageMetadata? usage,
@@ -201,7 +271,20 @@ public sealed class GeminiAiService : IAiService
             Model = model,
             InputUnits = usage?.PromptTokenCount ?? 0,
             OutputUnits = usage?.CandidatesTokenCount ?? 0,
+            CachedUnits = usage?.CachedContentTokenCount ?? 0,
             ProcessingTimeMs = (int)stopwatch.ElapsedMilliseconds
+        };
+    }
+
+    private static ConsumptionMetrics SumConsumption(ConsumptionMetrics first, ConsumptionMetrics second)
+    {
+        return new ConsumptionMetrics
+        {
+            Model = string.IsNullOrWhiteSpace(second.Model) ? first.Model : second.Model,
+            InputUnits = first.InputUnits + second.InputUnits,
+            OutputUnits = first.OutputUnits + second.OutputUnits,
+            CachedUnits = first.CachedUnits + second.CachedUnits,
+            ProcessingTimeMs = first.ProcessingTimeMs + second.ProcessingTimeMs
         };
     }
 
@@ -223,20 +306,7 @@ public sealed class GeminiAiService : IAiService
 
     private static JsonObject BuildGameRequest(string systemPrompt, string userPrompt)
     {
-        var schema = new JsonObject
-        {
-            ["type"] = "object",
-            ["properties"] = new JsonObject
-            {
-                ["vector_description"] = new JsonObject
-                {
-                    ["type"] = "string"
-                }
-            },
-            ["required"] = new JsonArray("vector_description")
-        };
-
-        return BuildRequest(systemPrompt, userPrompt, schema);
+        return BuildTextRequest(systemPrompt, userPrompt);
     }
 
     private static JsonObject BuildStreamerRequest(string systemPrompt, string userPrompt)
@@ -257,15 +327,46 @@ public sealed class GeminiAiService : IAiService
                 ["email"] = new JsonObject
                 {
                     ["type"] = new JsonArray("string", "null")
+                },
+                ["language"] = new JsonObject
+                {
+                    ["type"] = new JsonArray("string", "null")
                 }
             },
-            ["required"] = new JsonArray("vector_description", "persona_description")
+            ["required"] = new JsonArray("vector_description", "persona_description", "language")
         };
 
-        return BuildRequest(systemPrompt, userPrompt, schema);
+        return BuildStructuredRequest(systemPrompt, userPrompt, schema);
     }
 
-    private static JsonObject BuildRequest(string systemPrompt, string userPrompt, JsonObject schema)
+    private static JsonObject BuildStreamerResearchRequest(string systemPrompt, string userPrompt)
+    {
+        return BuildTextRequest(systemPrompt, userPrompt);
+    }
+
+    private static JsonObject BuildStructuredRequest(string systemPrompt, string userPrompt, JsonObject schema)
+    {
+        return new JsonObject
+        {
+            ["systemInstruction"] = new JsonObject
+            {
+                ["parts"] = new JsonArray(new JsonObject { ["text"] = systemPrompt })
+            },
+            ["contents"] = new JsonArray(
+                new JsonObject
+                {
+                    ["role"] = "user",
+                    ["parts"] = new JsonArray(new JsonObject { ["text"] = userPrompt })
+                }),
+            ["generationConfig"] = new JsonObject
+            {
+                ["responseMimeType"] = "application/json",
+                ["responseJsonSchema"] = schema
+            }
+        };
+    }
+
+    private static JsonObject BuildTextRequest(string systemPrompt, string userPrompt)
     {
         return new JsonObject
         {
@@ -284,8 +385,7 @@ public sealed class GeminiAiService : IAiService
                 new JsonObject { ["urlContext"] = new JsonObject() }),
             ["generationConfig"] = new JsonObject
             {
-                ["responseMimeType"] = "application/json",
-                ["responseJsonSchema"] = schema
+                ["responseMimeType"] = "text/plain"
             }
         };
     }
@@ -341,6 +441,8 @@ public sealed class GeminiAiService : IAiService
         public GeminiUsageMetadata? UsageMetadata { get; set; }
     }
 
+    private sealed record GeminiTextResponse(string Text, GeminiUsageMetadata? Usage);
+
     private sealed class GeminiCandidate
     {
         public GeminiContent? Content { get; set; }
@@ -360,5 +462,6 @@ public sealed class GeminiAiService : IAiService
     {
         public long PromptTokenCount { get; set; }
         public long CandidatesTokenCount { get; set; }
+        public long CachedContentTokenCount { get; set; }
     }
 }

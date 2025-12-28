@@ -39,7 +39,16 @@ public sealed class TwitchEnrichmentWorkerTests
         {
             VectorDescription = "vector",
             PersonaDescription = "persona",
-            Email = "streamer@example.com"
+            Email = "streamer@example.com",
+            Language = "fr",
+            Consumption = new ConsumptionMetrics
+            {
+                Model = "gemini",
+                InputUnits = 10,
+                OutputUnits = 20,
+                CachedUnits = 2,
+                ProcessingTimeMs = 100
+            }
         };
         var embeddingResponse = new EmbeddingResponse
         {
@@ -68,6 +77,15 @@ public sealed class TwitchEnrichmentWorkerTests
             It.IsAny<StreamerEnrichmentUpdate>(),
             It.IsAny<CancellationToken>()),
             Times.Once);
+        worker.ConsumptionTracker.Verify(tracker => tracker.LogAsync(
+            "Gemini",
+            "GenerateStreamerDescription",
+            "gemini",
+            10,
+            20,
+            2,
+            100),
+            Times.Once);
     }
 
     [Fact]
@@ -81,7 +99,15 @@ public sealed class TwitchEnrichmentWorkerTests
         };
         var aiResponse = new AiGameDescriptionResponse
         {
-            VectorDescription = "game vector"
+            VectorDescription = "game vector",
+            Consumption = new ConsumptionMetrics
+            {
+                Model = "gemini",
+                InputUnits = 11,
+                OutputUnits = 22,
+                CachedUnits = 3,
+                ProcessingTimeMs = 120
+            }
         };
         var embeddingResponse = new EmbeddingResponse
         {
@@ -104,6 +130,15 @@ public sealed class TwitchEnrichmentWorkerTests
             It.IsAny<GameEnrichmentUpdate>(),
             It.IsAny<CancellationToken>()),
             Times.Once);
+        worker.ConsumptionTracker.Verify(tracker => tracker.LogAsync(
+            "Gemini",
+            "GenerateGameDescription",
+            "gemini",
+            11,
+            22,
+            3,
+            120),
+            Times.Once);
     }
 
     private static WorkerHarness BuildWorker(
@@ -118,6 +153,7 @@ public sealed class TwitchEnrichmentWorkerTests
         var twitchService = new Mock<ITwitchService>();
         var aiService = new Mock<IAiService>();
         var embeddingService = new Mock<IEmbeddingService>();
+        var consumptionTracker = new Mock<IConsumptionTracker>();
         var qdrantClient = new Mock<IQdrantClient>();
         var workerRepository = new Mock<IWorkerRepository>();
         var logger = new Mock<ILogger<TwitchEnrichmentWorker>>();
@@ -126,6 +162,7 @@ public sealed class TwitchEnrichmentWorkerTests
         services.AddSingleton(twitchService.Object);
         services.AddSingleton(aiService.Object);
         services.AddSingleton(embeddingService.Object);
+        services.AddSingleton(consumptionTracker.Object);
         services.AddSingleton(qdrantClient.Object);
         services.AddSingleton(workerRepository.Object);
         var serviceProvider = services.BuildServiceProvider();
@@ -174,7 +211,7 @@ public sealed class TwitchEnrichmentWorkerTests
             optionsMonitor,
             logger.Object);
 
-        return new WorkerHarness(worker, twitchService, aiService, embeddingService, qdrantClient, workerRepository);
+        return new WorkerHarness(worker, twitchService, aiService, embeddingService, consumptionTracker, qdrantClient, workerRepository);
     }
 
     private sealed record WorkerHarness(
@@ -182,6 +219,7 @@ public sealed class TwitchEnrichmentWorkerTests
         Mock<ITwitchService> TwitchService,
         Mock<IAiService> AiService,
         Mock<IEmbeddingService> EmbeddingService,
+        Mock<IConsumptionTracker> ConsumptionTracker,
         Mock<IQdrantClient> QdrantClient,
         Mock<IWorkerRepository> WorkerRepository);
 

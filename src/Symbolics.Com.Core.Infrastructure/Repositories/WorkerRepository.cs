@@ -324,6 +324,7 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
         {
             streamer.Email = update.Email;
         }
+        streamer.Language = update.Language;
         streamer.LastModificationDate = update.LastModificationDate;
         streamer.IsReady = true;
 

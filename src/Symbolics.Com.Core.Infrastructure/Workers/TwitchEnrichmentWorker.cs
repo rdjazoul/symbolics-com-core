@@ -81,6 +81,7 @@ public sealed class TwitchEnrichmentWorker(
             var twitchService = scope.ServiceProvider.GetRequiredService<ITwitchService>();
             var aiService = scope.ServiceProvider.GetRequiredService<IAiService>();
             var embeddingService = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
+            var consumptionTracker = scope.ServiceProvider.GetRequiredService<IConsumptionTracker>();
             var qdrantClient = scope.ServiceProvider.GetRequiredService<IQdrantClient>();
             var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
 
@@ -92,6 +93,14 @@ public sealed class TwitchEnrichmentWorker(
                 twitchInfo.DisplayName,
                 streamerUrl,
                 twitchInfo.Description);
+            await consumptionTracker.LogAsync(
+                "Gemini",
+                "GenerateStreamerDescription",
+                aiDescriptions.Consumption.Model,
+                aiDescriptions.Consumption.InputUnits,
+                aiDescriptions.Consumption.OutputUnits,
+                aiDescriptions.Consumption.CachedUnits,
+                aiDescriptions.Consumption.ProcessingTimeMs);
 
             var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.VectorDescription);
             if (!qdrantClient.SaveStreamerDescription(item.StreamerId, embedding.Vector))
@@ -107,6 +116,7 @@ public sealed class TwitchEnrichmentWorker(
                 aiDescriptions.VectorDescription,
                 aiDescriptions.PersonaDescription,
                 aiDescriptions.Email,
+                aiDescriptions.Language,
                 DateTime.UtcNow);
 
             await workerRepository.FinalizeStreamerEnrichmentAsync(update, stoppingToken);
@@ -136,11 +146,20 @@ public sealed class TwitchEnrichmentWorker(
             var twitchService = scope.ServiceProvider.GetRequiredService<ITwitchService>();
             var aiService = scope.ServiceProvider.GetRequiredService<IAiService>();
             var embeddingService = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
+            var consumptionTracker = scope.ServiceProvider.GetRequiredService<IConsumptionTracker>();
             var qdrantClient = scope.ServiceProvider.GetRequiredService<IQdrantClient>();
             var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
 
             var twitchInfo = await twitchService.GetGameInfos(item.TwitchId);
             var aiDescriptions = await aiService.GenerateGameDescription(twitchInfo.Id, twitchInfo.Name);
+            await consumptionTracker.LogAsync(
+                "Gemini",
+                "GenerateGameDescription",
+                aiDescriptions.Consumption.Model,
+                aiDescriptions.Consumption.InputUnits,
+                aiDescriptions.Consumption.OutputUnits,
+                aiDescriptions.Consumption.CachedUnits,
+                aiDescriptions.Consumption.ProcessingTimeMs);
 
             var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.VectorDescription);
             if (!qdrantClient.SaveGameDescription(item.GameId, embedding.Vector))

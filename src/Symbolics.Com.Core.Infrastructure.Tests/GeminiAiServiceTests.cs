@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -16,7 +17,7 @@ public sealed class GeminiAiServiceTests
     {
         var handler = new StubHttpMessageHandler(request => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(BuildGeminiEnvelope("{\"vector_description\":\"desc\"}"))
+            Content = new StringContent(BuildGeminiEnvelope("desc"))
         });
         var service = BuildService(handler);
 
@@ -30,10 +31,18 @@ public sealed class GeminiAiServiceTests
     [Fact]
     public async Task GenerateStreamerDescription_ReturnsNullWhenEmailMissing()
     {
-        var handler = new StubHttpMessageHandler(request => new HttpResponseMessage(HttpStatusCode.OK)
+        var responses = new Queue<HttpResponseMessage>(new[]
         {
-            Content = new StringContent(BuildGeminiEnvelope("{\"vector_description\":\"vector\",\"persona_description\":\"persona\",\"email\":null}"))
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildGeminiEnvelope("research"))
+            },
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildGeminiEnvelope("{\"vector_description\":\"vector\",\"persona_description\":\"persona\",\"email\":null,\"language\":\"fr\"}"))
+            }
         });
+        var handler = new StubHttpMessageHandler(_ => responses.Dequeue());
         var service = BuildService(handler);
 
         var response = await service.GenerateStreamerDescription(
@@ -49,10 +58,18 @@ public sealed class GeminiAiServiceTests
     [Fact]
     public async Task GenerateStreamerDescription_NormalizesEmail()
     {
-        var handler = new StubHttpMessageHandler(request => new HttpResponseMessage(HttpStatusCode.OK)
+        var responses = new Queue<HttpResponseMessage>(new[]
         {
-            Content = new StringContent(BuildGeminiEnvelope("{\"vector_description\":\"vector\",\"persona_description\":\"persona\",\"email\":\"name [at] example dot com\"}"))
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildGeminiEnvelope("research"))
+            },
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildGeminiEnvelope("{\"vector_description\":\"vector\",\"persona_description\":\"persona\",\"email\":\"name [at] example dot com\",\"language\":\"en\"}"))
+            }
         });
+        var handler = new StubHttpMessageHandler(_ => responses.Dequeue());
         var service = BuildService(handler);
 
         var response = await service.GenerateStreamerDescription(
@@ -63,6 +80,35 @@ public sealed class GeminiAiServiceTests
             "bio");
 
         Assert.Equal("name@example.com", response.Email);
+    }
+
+    [Fact]
+    public async Task GenerateStreamerDescription_AddsResearchConsumptionToStructuredConsumption()
+    {
+        var responses = new Queue<HttpResponseMessage>(new[]
+        {
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildGeminiEnvelope("research", promptTokens: 3, candidateTokens: 5, cachedTokens: 1))
+            },
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildGeminiEnvelope("{\"vector_description\":\"vector\",\"persona_description\":\"persona\",\"email\":null,\"language\":\"en\"}", promptTokens: 7, candidateTokens: 11, cachedTokens: 2))
+            }
+        });
+        var handler = new StubHttpMessageHandler(_ => responses.Dequeue());
+        var service = BuildService(handler);
+
+        var response = await service.GenerateStreamerDescription(
+            "twitch-1",
+            "login",
+            "Display Name",
+            "https://twitch.tv/login",
+            "bio");
+
+        Assert.Equal(10, response.Consumption.InputUnits);
+        Assert.Equal(16, response.Consumption.OutputUnits);
+        Assert.Equal(3, response.Consumption.CachedUnits);
     }
 
     [Fact]
@@ -85,15 +131,40 @@ public sealed class GeminiAiServiceTests
     }
 
     [Fact]
-    public async Task GenerateGameDescription_ThrowsOnInvalidJson()
+    public async Task GenerateGameDescription_ThrowsOnEmptyText()
     {
         var handler = new StubHttpMessageHandler(request => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(BuildGeminiEnvelope("not-json"))
+            Content = new StringContent(BuildGeminiEnvelope(string.Empty))
         });
         var service = BuildService(handler);
 
         await Assert.ThrowsAsync<AiResponseFormatException>(() => service.GenerateGameDescription("game-1", "Game Name"));
+    }
+
+    [Fact]
+    public async Task GenerateStreamerDescription_ThrowsOnInvalidJson()
+    {
+        var responses = new Queue<HttpResponseMessage>(new[]
+        {
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildGeminiEnvelope("research"))
+            },
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildGeminiEnvelope("not-json"))
+            }
+        });
+        var handler = new StubHttpMessageHandler(_ => responses.Dequeue());
+        var service = BuildService(handler);
+
+        await Assert.ThrowsAsync<AiResponseFormatException>(() => service.GenerateStreamerDescription(
+            "twitch-1",
+            "login",
+            "Display Name",
+            "https://twitch.tv/login",
+            "bio"));
     }
 
     private static GeminiAiService BuildService(StubHttpMessageHandler handler)
@@ -111,7 +182,11 @@ public sealed class GeminiAiServiceTests
         return new GeminiAiService(httpClient, optionsMonitor, logger.Object);
     }
 
-    private static string BuildGeminiEnvelope(string jsonContent)
+    private static string BuildGeminiEnvelope(
+        string jsonContent,
+        long promptTokens = 12,
+        long candidateTokens = 34,
+        long cachedTokens = 0)
     {
         var payload = new
         {
@@ -125,7 +200,12 @@ public sealed class GeminiAiServiceTests
                     }
                 }
             },
-            usageMetadata = new { promptTokenCount = 12, candidatesTokenCount = 34 }
+            usageMetadata = new
+            {
+                promptTokenCount = promptTokens,
+                candidatesTokenCount = candidateTokens,
+                cachedContentTokenCount = cachedTokens
+            }
         };
 
         return JsonSerializer.Serialize(payload);
