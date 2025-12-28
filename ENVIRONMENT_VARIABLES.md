@@ -15,5 +15,6 @@ Set the following keys when configuring the service (e.g. in systemd `Environmen
 | AI embedding API key | `Ai__EmbeddingApiKey` |
 | Twitch client ID | `Twitch__ClientId` |
 | Twitch client secret | `Twitch__ClientSecret` |
+| Admin authentication key | `Admin__AdminKey` |
 
 > The double underscore (`__`) maps to nested configuration sections (e.g. `Qdrant:UrlHttp`). Adjust the values to match your deployment.

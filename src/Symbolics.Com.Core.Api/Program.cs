@@ -178,7 +178,7 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 
         await context.Response.WriteAsJsonAsync(response);
     }
-});
+}).WithTags("Health");
 
 app.Run();
 
