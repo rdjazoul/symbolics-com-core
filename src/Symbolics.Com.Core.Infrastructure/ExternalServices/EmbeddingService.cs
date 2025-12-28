@@ -42,6 +42,7 @@ public sealed class EmbeddingService : IEmbeddingService
             Model = "embedding-placeholder",
             InputUnits = text.Length,
             OutputUnits = dimension,
+            CachedUnits = 0,
             ProcessingTimeMs = (int)stopwatch.ElapsedMilliseconds
         };
 

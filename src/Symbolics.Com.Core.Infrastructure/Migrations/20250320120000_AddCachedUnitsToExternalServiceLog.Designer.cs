@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Symbolics.Com.Core.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Symbolics.Com.Core.Infrastructure.Persistence;
 namespace Symbolics.Com.Core.Infrastructure.Migrations
 {
     [DbContext(typeof(CoreDbContext))]
-    partial class CoreDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250320120000_AddCachedUnitsToExternalServiceLog")]
+    partial class AddCachedUnitsToExternalServiceLog
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -198,6 +201,17 @@ namespace Symbolics.Com.Core.Infrastructure.Migrations
                     b.ToTable("GameTwitch", (string)null);
                 });
 
+            modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.GameTwitch", b =>
+                {
+                    b.HasOne("Symbolics.Com.Core.Infrastructure.Entities.Game", "Game")
+                        .WithMany("TwitchEntries")
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+                });
+
             modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.Streamer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -205,16 +219,13 @@ namespace Symbolics.Com.Core.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("Email")
-                        .HasMaxLength(320)
-                        .HasColumnType("character varying(320)");
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
                     b.Property<bool>("IsReady")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
-
-                    b.Property<DateTime>("LastModificationDate")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("PersonaDescription")
                         .HasColumnType("text");
@@ -223,8 +234,6 @@ namespace Symbolics.Com.Core.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Email");
 
                     b.HasIndex("Id")
                         .HasDatabaseName("IX_Streamer_IsReady")
@@ -254,43 +263,23 @@ namespace Symbolics.Com.Core.Infrastructure.Migrations
 
             modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.StreamerTwitch", b =>
                 {
-                    b.Property<string>("TwitchId")
+                    b.Property<string>("TwitchLogin")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
                     b.Property<Guid>("StreamerId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("TwitchLogin")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("TwitchName")
                         .IsRequired()
                         .HasMaxLength(250)
                         .HasColumnType("character varying(250)");
 
-                    b.HasKey("TwitchId");
+                    b.HasKey("TwitchLogin");
 
                     b.HasIndex("StreamerId");
 
                     b.ToTable("StreamerTwitch", (string)null);
-                });
-
-            modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.StreamerYoutube", b =>
-                {
-                    b.Property<Guid>("StreamerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("YoutubeUrl")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.HasKey("StreamerId");
-
-                    b.ToTable("StreamerYoutube", (string)null);
                 });
 
             modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.WorkerState", b =>
@@ -299,31 +288,15 @@ namespace Symbolics.Com.Core.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<string>("CurrentCursor")
-                        .HasColumnType("text");
+                    b.Property<DateTime>("LastRun")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsEnabled")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<DateTime>("LastCleanupDate")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("boolean");
 
                     b.HasKey("WorkerName");
 
                     b.ToTable("WorkerState", (string)null);
-                });
-
-            modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.GameEnrichmentQueue", b =>
-                {
-                    b.HasOne("Symbolics.Com.Core.Infrastructure.Entities.Game", "Game")
-                        .WithOne("EnrichmentQueue")
-                        .HasForeignKey("Symbolics.Com.Core.Infrastructure.Entities.GameEnrichmentQueue", "GameId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Game");
                 });
 
             modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.GamePlayed", b =>
@@ -348,7 +321,7 @@ namespace Symbolics.Com.Core.Infrastructure.Migrations
             modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.GameTwitch", b =>
                 {
                     b.HasOne("Symbolics.Com.Core.Infrastructure.Entities.Game", "Game")
-                        .WithMany("TwitchMappings")
+                        .WithMany("TwitchEntries")
                         .HasForeignKey("GameId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -356,21 +329,10 @@ namespace Symbolics.Com.Core.Infrastructure.Migrations
                     b.Navigation("Game");
                 });
 
-            modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.StreamerEnrichmentQueue", b =>
-                {
-                    b.HasOne("Symbolics.Com.Core.Infrastructure.Entities.Streamer", "Streamer")
-                        .WithOne("EnrichmentQueue")
-                        .HasForeignKey("Symbolics.Com.Core.Infrastructure.Entities.StreamerEnrichmentQueue", "StreamerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Streamer");
-                });
-
             modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.StreamerTwitch", b =>
                 {
                     b.HasOne("Symbolics.Com.Core.Infrastructure.Entities.Streamer", "Streamer")
-                        .WithMany("TwitchMappings")
+                        .WithMany("TwitchEntries")
                         .HasForeignKey("StreamerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -378,35 +340,18 @@ namespace Symbolics.Com.Core.Infrastructure.Migrations
                     b.Navigation("Streamer");
                 });
 
-            modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.StreamerYoutube", b =>
+            modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.Streamer", b =>
                 {
-                    b.HasOne("Symbolics.Com.Core.Infrastructure.Entities.Streamer", "Streamer")
-                        .WithOne("Youtube")
-                        .HasForeignKey("Symbolics.Com.Core.Infrastructure.Entities.StreamerYoutube", "StreamerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Navigation("PlayedEntries");
 
-                    b.Navigation("Streamer");
+                    b.Navigation("TwitchEntries");
                 });
 
             modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.Game", b =>
                 {
-                    b.Navigation("EnrichmentQueue");
-
                     b.Navigation("PlayedEntries");
 
-                    b.Navigation("TwitchMappings");
-                });
-
-            modelBuilder.Entity("Symbolics.Com.Core.Infrastructure.Entities.Streamer", b =>
-                {
-                    b.Navigation("EnrichmentQueue");
-
-                    b.Navigation("PlayedEntries");
-
-                    b.Navigation("TwitchMappings");
-
-                    b.Navigation("Youtube");
+                    b.Navigation("TwitchEntries");
                 });
 #pragma warning restore 612, 618
         }

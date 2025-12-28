@@ -16,7 +16,7 @@ public sealed class ConsumptionTracker : IConsumptionTracker
         _logger = logger;
     }
 
-    public async Task LogAsync(string service, string action, string model, long input, long output, long elapsedMs)
+    public async Task LogAsync(string service, string action, string model, long input, long output, long cached, long elapsedMs)
     {
         var log = new ExternalServiceLog
         {
@@ -26,6 +26,7 @@ public sealed class ConsumptionTracker : IConsumptionTracker
             Model = model,
             InputUnits = input,
             OutputUnits = output,
+            CachedUnits = cached,
             ExecutionTimeMs = (int)elapsedMs,
             CreatedAt = DateTime.UtcNow
         };
@@ -33,12 +34,13 @@ public sealed class ConsumptionTracker : IConsumptionTracker
         await _repository.AddAsync(log);
 
         _logger.LogInformation(
-            "External consumption logged. Service: {Service}, Action: {Action}, Model: {Model}, Input: {InputUnits}, Output: {OutputUnits}, ElapsedMs: {ElapsedMs}",
+            "External consumption logged. Service: {Service}, Action: {Action}, Model: {Model}, Input: {InputUnits}, Output: {OutputUnits}, Cached: {CachedUnits}, ElapsedMs: {ElapsedMs}",
             service,
             action,
             model,
             input,
             output,
+            cached,
             elapsedMs);
     }
 }

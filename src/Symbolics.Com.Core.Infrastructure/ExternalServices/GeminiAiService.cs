@@ -268,6 +268,7 @@ public sealed class GeminiAiService : IAiService
             Model = model,
             InputUnits = usage?.PromptTokenCount ?? 0,
             OutputUnits = usage?.CandidatesTokenCount ?? 0,
+            CachedUnits = usage?.CachedContentTokenCount ?? 0,
             ProcessingTimeMs = (int)stopwatch.ElapsedMilliseconds
         };
     }
@@ -442,5 +443,6 @@ public sealed class GeminiAiService : IAiService
     {
         public long PromptTokenCount { get; set; }
         public long CandidatesTokenCount { get; set; }
+        public long CachedContentTokenCount { get; set; }
     }
 }
