@@ -32,7 +32,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/symbolics-com-core
+          images: ghcr.io/rdjazoul/symbolics-com-core
           tags: |
             type=raw,value=staging # On garde un tag 'staging' fixe pour le serveur
             type=ref,event=tag # On garde aussi le nom du tag git s'il existe
