@@ -46,7 +46,6 @@ builder.Services.AddDbContext<CoreDbContext>(options => options.UseNpgsql(connec
 builder.Services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
 builder.Services.AddScoped<IStreamRepository, StreamRepository>();
 builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection("Admin"));
-builder.Services.Configure<ServiceSettings>(builder.Configuration.GetSection("Service"));
 builder.Services.Configure<GeminiOptions>(builder.Configuration.GetSection("Gemini"));
 builder.Services.Configure<LogOptions>(builder.Configuration.GetSection("Log"));
 builder.Services.Configure<TwitchOptions>(builder.Configuration.GetSection("Twitch"));
@@ -54,6 +53,7 @@ builder.Services.Configure<QdrantOptions>(builder.Configuration.GetSection("Qdra
 builder.Services.Configure<TwitchDiscoveryOptions>(builder.Configuration.GetSection("TwitchDiscovery"));
 builder.Services.Configure<TwitchEnrichmentOptions>(builder.Configuration.GetSection("TwitchEnrichment"));
 builder.Services.Configure<StreamMaintenanceOptions>(builder.Configuration.GetSection("StreamMaintenance"));
+builder.Services.Configure<SwaggerSettings>(builder.Configuration.GetSection("Swagger"));
 builder.Services.AddHttpClient<QdrantClient>();
 builder.Services.AddSingleton<IQdrantClient>(sp => sp.GetRequiredService<QdrantClient>());
 builder.Services.AddHttpClient("TwitchAuth");
@@ -165,11 +165,50 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+// Enable Swagger for all environments with authentication
+
+
+// Add basic authentication middleware for Swagger
+app.Use(async (context, next) =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    if (context.Request.Path.StartsWithSegments("/swagger"))
+    {
+        var swaggerSettings = context.RequestServices.GetRequiredService<IOptions<SwaggerSettings>>().Value;
+        
+        if (!string.IsNullOrWhiteSpace(swaggerSettings.Username) && !string.IsNullOrWhiteSpace(swaggerSettings.Password))
+        {
+            var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
+            if (authHeader == null || !authHeader.StartsWith("Basic "))
+            {
+                context.Response.Headers.WWWAuthenticate = "Basic realm=\"Swagger\"";
+                context.Response.StatusCode = 401;
+                return;
+            }
+
+            var token = authHeader.Substring("Basic ".Length).Trim();
+            var credentialBytes = Convert.FromBase64String(token);
+            var credentials = System.Text.Encoding.UTF8.GetString(credentialBytes).Split(':', 2);
+            
+            if (credentials.Length != 2 || 
+                credentials[0] != swaggerSettings.Username || 
+                credentials[1] != swaggerSettings.Password)
+            {
+                context.Response.StatusCode = 401;
+                return;
+            }
+        }
+    }
+    
+    await next();
+});
+
+app.UseSwagger();
+app.UseSwaggerUI(options =>
+{
+    var swaggerSettings = app.Services.GetRequiredService<IOptions<SwaggerSettings>>().Value;
+    options.RoutePrefix = "swagger";
+    options.DocumentTitle = "Symbolics.Com.Core API";
+});
 
 using (var scope = app.Services.CreateScope())
 {

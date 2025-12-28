@@ -78,6 +78,8 @@ jobs:
             echo "LOG__SEQHEALTHURL=${{ secrets.LOG__SEQHEALTHURL }}" >> .env
             echo "SERILOG__WRITETO__2__ARGS__SERVERURL=${{ secrets.SERILOG__WRITETO__2__ARGS__SERVERURL }}" >> .env
             echo "ADMIN__ADMINKEY=${{ secrets.ADMIN__ADMINKEY }}" >> .env
+            echo "SWAGGER__USERNAME=${{ secrets.SWAGGER__USERNAME }}" >> .env
+            echo "SWAGGER__PASSWORD=${{ secrets.SWAGGER__PASSWORD }}" >> .env
             echo "SERVICE__SERVICEKEY=${{ secrets.SERVICE__SERVICEKEY }}" >> .env
             echo "CORE_IMAGE_TAG=${{ github.ref_name }}" >> .env
 

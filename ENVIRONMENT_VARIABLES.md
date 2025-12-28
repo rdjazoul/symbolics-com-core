@@ -16,5 +16,7 @@ Set the following keys when configuring the service (e.g. in systemd `Environmen
 | Twitch client ID | `Twitch__ClientId` |
 | Twitch client secret | `Twitch__ClientSecret` |
 | Admin authentication key | `Admin__AdminKey` |
+| Swagger username | `Swagger__Username` |
+| Swagger password | `Swagger__Password` |
 
 > The double underscore (`__`) maps to nested configuration sections (e.g. `Qdrant:UrlHttp`). Adjust the values to match your deployment.
