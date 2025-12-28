@@ -1,3 +1,6 @@
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -123,7 +126,30 @@ public sealed class GeminiAiService : IAiService
         where TResponse : class
     {
         var requestUri = BuildRequestUri(options);
-        var response = await _httpClient.PostAsJsonAsync(requestUri, requestBody, ResponseSerializerOptions);
+        
+        var request = new HttpRequestMessage(HttpMethod.Post, requestUri)
+        {
+            Content = JsonContent.Create(requestBody, typeof(JsonObject), new MediaTypeHeaderValue("application/json"), ResponseSerializerOptions)
+        };
+        request.Headers.Add("x-goog-api-key", options.DescriptionApiKey);
+        
+        // Log request details
+        _logger.LogInformation("Sending Gemini API request: {Method} {Uri}", request.Method, requestUri);
+        _logger.LogInformation("Request headers: {@Headers}", request.Headers.ToDictionary(h => h.Key, h => h.Value));
+        _logger.LogInformation("Request body: {RequestBody}", requestBody.ToString());
+        
+        var response = await _httpClient.SendAsync(request);
+        
+        // Log response details
+        _logger.LogInformation("Received Gemini API response: {StatusCode} {ReasonPhrase}", response.StatusCode, response.ReasonPhrase);
+        _logger.LogInformation("Response headers: {@Headers}", response.Headers.ToDictionary(h => h.Key, h => h.Value));
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Gemini API error response: {ErrorContent}", errorContent);
+        }
+        
         response.EnsureSuccessStatusCode();
 
         var payload = await response.Content.ReadAsStringAsync();
@@ -186,18 +212,13 @@ public sealed class GeminiAiService : IAiService
             throw new InvalidOperationException("AiOptions.DescriptionBaseUrl is not configured.");
         }
 
-        if (string.IsNullOrWhiteSpace(options.DescriptionApiKey))
-        {
-            throw new InvalidOperationException("AiOptions.DescriptionApiKey is not configured.");
-        }
-
         if (string.IsNullOrWhiteSpace(options.DescriptionModel))
         {
             throw new InvalidOperationException("AiOptions.DescriptionModel is not configured.");
         }
 
         var baseUrl = options.DescriptionBaseUrl.TrimEnd('/');
-        return $"{baseUrl}/models/{options.DescriptionModel}:generateContent?key={options.DescriptionApiKey}";
+        return $"{baseUrl}/models/{options.DescriptionModel}:generateContent";
     }
 
     private static JsonObject BuildGameRequest(string systemPrompt, string userPrompt)
