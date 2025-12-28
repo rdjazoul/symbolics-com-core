@@ -52,6 +52,7 @@ jobs:
   deploy:
     needs: build-and-push # Attendre que l'image soit prête avant de déployer
     runs-on: ubuntu-24.04
+    environment: Staging
     steps:
       - name: SSH Remote Deployment
         uses: appleboy/ssh-action@master
