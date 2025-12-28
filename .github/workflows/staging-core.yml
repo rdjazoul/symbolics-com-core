@@ -1,0 +1,64 @@
+name: CD - Symbolics Core Staging
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write # Nécessaire pour envoyer l'image sur le registre GitHub
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4.1.1
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # Jeton temporaire généré par GitHub
+
+      - name: Extract Metadata (Tags/Labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/symbolics-com-core
+          tags: |
+            type=raw,value=staging # On garde un tag 'staging' fixe pour le serveur
+            type=ref,event=tag # On garde aussi le nom du tag git s'il existe
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          # INJECTION DE LA VERSION ICI
+          build-args: |
+            VERSION_ID=${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push # Attendre que l'image soit prête avant de déployer
+    runs-on: ubuntu-24.04
+    steps:
+      - name: SSH Remote Deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /app/staging
+            # Mise à jour de l'image sur le serveur
+            docker compose pull symbolics-com-core
+            # Relance du conteneur avec la nouvelle version
+            docker compose up -d symbolics-com-core
+            # Nettoyage des anciennes images inutilisées
+            docker image prune -f
