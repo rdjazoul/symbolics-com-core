@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -165,6 +166,25 @@ public sealed class GeminiAiServiceTests
             "Display Name",
             "https://twitch.tv/login",
             "bio"));
+    }
+
+    [Fact]
+    public async Task MergeAndOptimizeDescriptions_UsesCampaignFusionPrompt()
+    {
+        var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(BuildGeminiEnvelope("optimized"))
+        });
+        var service = BuildService(handler);
+        var promptPath = Path.Combine(AppContext.BaseDirectory, "AiPrompts", "CampaignFusion.txt");
+        var prompt = await File.ReadAllTextAsync(promptPath);
+
+        await service.MergeAndOptimizeDescriptions("game", "campaign");
+
+        Assert.NotNull(handler.LastRequestContent);
+        Assert.Contains(prompt.Trim(), handler.LastRequestContent);
+        Assert.Contains("Game description", handler.LastRequestContent);
+        Assert.Contains("Campaign description", handler.LastRequestContent);
     }
 
     private static GeminiAiService BuildService(StubHttpMessageHandler handler)

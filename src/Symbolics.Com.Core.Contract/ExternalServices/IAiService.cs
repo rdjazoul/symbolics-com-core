@@ -12,4 +12,5 @@ public interface IAiService
         string displayName,
         string url,
         string rawDescription);
+    Task<string> MergeAndOptimizeDescriptions(string gameDescription, string campaignDescription);
 }

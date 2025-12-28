@@ -1,3 +1,4 @@
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -19,6 +20,7 @@ public sealed class GeminiAiService : IAiService
     private const string StreamerSystemPromptFile = "StreamerDescription.system.txt";
     private const string StreamerUserPromptFile = "StreamerDescription.user.txt";
     private const string StreamerResearchPromptFile = "StreamerResearch.user.txt";
+    private const string CampaignFusionPromptFileName = "CampaignFusion.txt";
     private static readonly JsonSerializerOptions ResponseSerializerOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
@@ -32,6 +34,7 @@ public sealed class GeminiAiService : IAiService
     private readonly string _streamerSystemPrompt;
     private readonly string _streamerUserPromptTemplate;
     private readonly string _streamerResearchPromptTemplate;
+    private readonly string _campaignFusionPromptPath;
 
     public GeminiAiService(
         HttpClient httpClient,
@@ -46,6 +49,7 @@ public sealed class GeminiAiService : IAiService
         _streamerSystemPrompt = LoadPrompt(StreamerSystemPromptFile);
         _streamerUserPromptTemplate = LoadPrompt(StreamerUserPromptFile);
         _streamerResearchPromptTemplate = LoadPrompt(StreamerResearchPromptFile);
+        _campaignFusionPromptPath = Path.Combine(AppContext.BaseDirectory, "AiPrompts", CampaignFusionPromptFileName);
     }
 
     public async Task<AiGameDescriptionResponse> GenerateGameDescription(string twitchGameId, string gameName)
@@ -142,6 +146,34 @@ public sealed class GeminiAiService : IAiService
             researchStopwatch.Stop();
             structuredStopwatch?.Stop();
             _logger.LogError(ex, "Failed to generate streamer descriptions for {Login}.", login);
+            throw;
+        }
+    }
+
+    public async Task<string> MergeAndOptimizeDescriptions(string gameDescription, string campaignDescription)
+    {
+        var options = _optionsMonitor.CurrentValue;
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var systemPrompt = await LoadFilePromptAsync(_campaignFusionPromptPath);
+            var userPrompt = BuildCampaignFusionPrompt(gameDescription, campaignDescription);
+            var requestBody = BuildTextRequest(systemPrompt, userPrompt);
+
+            _logger.LogInformation("Merging and optimizing campaign descriptions with Gemini.");
+
+            var response = await SendTextRequestAsync(options, requestBody, stopwatch);
+            if (string.IsNullOrWhiteSpace(response.Text))
+            {
+                throw new AiResponseFormatException("Gemini returned an empty optimized campaign description.");
+            }
+
+            return response.Text;
+        }
+        catch (Exception ex) when (ex is not AiResponseFormatException)
+        {
+            stopwatch.Stop();
+            _logger.LogError(ex, "Failed to merge and optimize campaign descriptions.");
             throw;
         }
     }
@@ -432,6 +464,22 @@ public sealed class GeminiAiService : IAiService
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         return match.Success ? match.Value : null;
+    }
+
+    private static string BuildCampaignFusionPrompt(string gameDescription, string campaignDescription)
+    {
+        return $"Game description:\n{gameDescription}\n\nCampaign description:\n{campaignDescription}";
+    }
+
+    private static async Task<string> LoadFilePromptAsync(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            throw new FileNotFoundException($"Prompt file '{filePath}' not found.");
+        }
+
+        var contents = await File.ReadAllTextAsync(filePath, Encoding.UTF8);
+        return contents.Trim();
     }
 
     private static string LoadPrompt(string fileName)

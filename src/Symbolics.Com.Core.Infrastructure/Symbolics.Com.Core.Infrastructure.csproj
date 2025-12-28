@@ -23,4 +23,10 @@
   <ItemGroup>
     <EmbeddedResource Include="ExternalServices/Prompts/*.txt" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="AiPrompts/CampaignFusion.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>
