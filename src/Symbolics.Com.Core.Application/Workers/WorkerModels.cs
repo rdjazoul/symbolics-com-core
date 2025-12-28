@@ -38,6 +38,7 @@ public sealed record StreamerEnrichmentUpdate(
     string TwitchName,
     string VectorDescription,
     string PersonaDescription,
+    string? Email,
     DateTime LastModificationDate);
 
 public sealed record GameEnrichmentUpdate(

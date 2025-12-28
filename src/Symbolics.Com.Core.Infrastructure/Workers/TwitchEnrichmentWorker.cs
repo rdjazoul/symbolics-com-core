@@ -85,7 +85,13 @@ public sealed class TwitchEnrichmentWorker(
             var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
 
             var twitchInfo = await twitchService.GetStreamerInfos(item.TwitchLogin);
-            var aiDescriptions = await aiService.GenerateStreamerDescription(twitchInfo.Description, twitchInfo.Login);
+            var streamerUrl = $"https://www.twitch.tv/{twitchInfo.Login}";
+            var aiDescriptions = await aiService.GenerateStreamerDescription(
+                twitchInfo.Id,
+                twitchInfo.Login,
+                twitchInfo.DisplayName,
+                streamerUrl,
+                twitchInfo.Description);
 
             var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.VectorDescription);
             if (!qdrantClient.SaveStreamerDescription(item.StreamerId, embedding.Vector))
@@ -100,6 +106,7 @@ public sealed class TwitchEnrichmentWorker(
                 twitchInfo.DisplayName,
                 aiDescriptions.VectorDescription,
                 aiDescriptions.PersonaDescription,
+                aiDescriptions.Email,
                 DateTime.UtcNow);
 
             await workerRepository.FinalizeStreamerEnrichmentAsync(update, stoppingToken);
@@ -133,9 +140,9 @@ public sealed class TwitchEnrichmentWorker(
             var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
 
             var twitchInfo = await twitchService.GetGameInfos(item.TwitchId);
-            var aiDescriptions = await aiService.GenerateGameDescription(twitchInfo.Name);
+            var aiDescriptions = await aiService.GenerateGameDescription(twitchInfo.Id, twitchInfo.Name);
 
-            var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.Description);
+            var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.VectorDescription);
             if (!qdrantClient.SaveGameDescription(item.GameId, embedding.Vector))
             {
                 throw new InvalidOperationException($"Failed to save game embedding for {item.GameId}.");
@@ -145,7 +152,7 @@ public sealed class TwitchEnrichmentWorker(
                 item.GameId,
                 twitchInfo.Id,
                 twitchInfo.Name,
-                aiDescriptions.Description);
+                aiDescriptions.VectorDescription);
 
             await workerRepository.FinalizeGameEnrichmentAsync(update, stoppingToken);
         }

@@ -38,7 +38,8 @@ public sealed class TwitchEnrichmentWorkerTests
         var aiResponse = new AiStreamerDescriptionsResponse
         {
             VectorDescription = "vector",
-            PersonaDescription = "persona"
+            PersonaDescription = "persona",
+            Email = "streamer@example.com"
         };
         var embeddingResponse = new EmbeddingResponse
         {
@@ -54,7 +55,13 @@ public sealed class TwitchEnrichmentWorkerTests
         await worker.Worker.DoWorkAsync(CancellationToken.None);
 
         worker.TwitchService.Verify(service => service.GetStreamerInfos("login-1"), Times.Once);
-        worker.AiService.Verify(service => service.GenerateStreamerDescription("bio", "login-1"), Times.Once);
+        worker.AiService.Verify(service => service.GenerateStreamerDescription(
+            "twitch-1",
+            "login-1",
+            "Streamer Name",
+            "https://www.twitch.tv/login-1",
+            "bio"),
+            Times.Once);
         worker.EmbeddingService.Verify(service => service.GenerateEmbedding("vector"), Times.Once);
         worker.QdrantClient.Verify(client => client.SaveStreamerDescription(streamerItem.StreamerId, embeddingResponse.Vector), Times.Once);
         worker.WorkerRepository.Verify(repository => repository.FinalizeStreamerEnrichmentAsync(
@@ -74,7 +81,7 @@ public sealed class TwitchEnrichmentWorkerTests
         };
         var aiResponse = new AiGameDescriptionResponse
         {
-            Description = "game vector"
+            VectorDescription = "game vector"
         };
         var embeddingResponse = new EmbeddingResponse
         {
@@ -90,7 +97,7 @@ public sealed class TwitchEnrichmentWorkerTests
         await worker.Worker.DoWorkAsync(CancellationToken.None);
 
         worker.TwitchService.Verify(service => service.GetGameInfos("game-1"), Times.Once);
-        worker.AiService.Verify(service => service.GenerateGameDescription("Game Name"), Times.Once);
+        worker.AiService.Verify(service => service.GenerateGameDescription("game-1", "Game Name"), Times.Once);
         worker.EmbeddingService.Verify(service => service.GenerateEmbedding("game vector"), Times.Once);
         worker.QdrantClient.Verify(client => client.SaveGameDescription(gameItem.GameId, embeddingResponse.Vector), Times.Once);
         worker.WorkerRepository.Verify(repository => repository.FinalizeGameEnrichmentAsync(
@@ -141,9 +148,14 @@ public sealed class TwitchEnrichmentWorkerTests
             .ReturnsAsync(twitchStreamerResponse ?? new TwitchStreamerResponse());
         twitchService.Setup(service => service.GetGameInfos(It.IsAny<string>()))
             .ReturnsAsync(twitchGameResponse ?? new TwitchGameResponse());
-        aiService.Setup(service => service.GenerateStreamerDescription(It.IsAny<string>(), It.IsAny<string>()))
+        aiService.Setup(service => service.GenerateStreamerDescription(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>()))
             .ReturnsAsync(aiStreamerResponse ?? new AiStreamerDescriptionsResponse());
-        aiService.Setup(service => service.GenerateGameDescription(It.IsAny<string>()))
+        aiService.Setup(service => service.GenerateGameDescription(It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync(aiGameResponse ?? new AiGameDescriptionResponse());
         embeddingService.Setup(service => service.GenerateEmbedding(It.IsAny<string>()))
             .ReturnsAsync(embeddingResponse ?? new EmbeddingResponse());

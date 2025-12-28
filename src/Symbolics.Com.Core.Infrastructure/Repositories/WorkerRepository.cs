@@ -320,6 +320,10 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
 
         streamer.VectorDescription = update.VectorDescription;
         streamer.PersonaDescription = update.PersonaDescription;
+        if (!string.IsNullOrWhiteSpace(update.Email))
+        {
+            streamer.Email = update.Email;
+        }
         streamer.LastModificationDate = update.LastModificationDate;
         streamer.IsReady = true;
 

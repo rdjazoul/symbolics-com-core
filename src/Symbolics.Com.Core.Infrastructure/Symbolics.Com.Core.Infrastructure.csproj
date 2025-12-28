@@ -18,4 +18,8 @@
     <ProjectReference Include="..\Symbolics.Com.Core.Application\Symbolics.Com.Core.Application.csproj" />
     <ProjectReference Include="..\Symbolics.Com.Core.Contract\Symbolics.Com.Core.Contract.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="ExternalServices/Prompts/*.txt" />
+  </ItemGroup>
 </Project>

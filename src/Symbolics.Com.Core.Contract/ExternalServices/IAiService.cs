@@ -5,6 +5,11 @@ namespace Symbolics.Com.Core.Contract.ExternalServices;
 
 public interface IAiService
 {
-    Task<AiGameDescriptionResponse> GenerateGameDescription(string gameName);
-    Task<AiStreamerDescriptions> GenerateStreamerDescription(string bio, string login);
+    Task<AiGameDescriptionResponse> GenerateGameDescription(string twitchGameId, string gameName);
+    Task<AiStreamerDescriptions> GenerateStreamerDescription(
+        string twitchId,
+        string login,
+        string displayName,
+        string url,
+        string rawDescription);
 }

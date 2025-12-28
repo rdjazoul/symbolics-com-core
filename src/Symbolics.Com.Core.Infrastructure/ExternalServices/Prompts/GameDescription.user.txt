@@ -1,0 +1,4 @@
+Effectue une recherche web sur le jeu "{gameName}" (ID Twitch: {twitchGameId}).
+Analyse le genre précis, les mécaniques de gameplay, l'ambiance, la direction artistique et le public cible.
+Répond exclusivement au format JSON suivant :
+{"vector_description":"Texte dense et riche de 200-300 mots..."}
