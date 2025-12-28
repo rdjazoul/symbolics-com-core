@@ -225,12 +225,12 @@ public sealed class GeminiAiService : IAiService
     {
         var schema = new JsonObject
         {
-            ["type"] = "OBJECT",
+            ["type"] = "object",
             ["properties"] = new JsonObject
             {
                 ["vector_description"] = new JsonObject
                 {
-                    ["type"] = "STRING"
+                    ["type"] = "string"
                 }
             },
             ["required"] = new JsonArray("vector_description")
@@ -243,20 +243,20 @@ public sealed class GeminiAiService : IAiService
     {
         var schema = new JsonObject
         {
-            ["type"] = "OBJECT",
+            ["type"] = "object",
             ["properties"] = new JsonObject
             {
                 ["vector_description"] = new JsonObject
                 {
-                    ["type"] = "STRING"
+                    ["type"] = "string"
                 },
                 ["persona_description"] = new JsonObject
                 {
-                    ["type"] = "STRING"
+                    ["type"] = "string"
                 },
                 ["email"] = new JsonObject
                 {
-                    ["type"] = new JsonArray("STRING", "NULL")
+                    ["type"] = new JsonArray("string", "null")
                 }
             },
             ["required"] = new JsonArray("vector_description", "persona_description")
@@ -279,11 +279,13 @@ public sealed class GeminiAiService : IAiService
                     ["role"] = "user",
                     ["parts"] = new JsonArray(new JsonObject { ["text"] = userPrompt })
                 }),
-            ["tools"] = new JsonArray(new JsonObject { ["google_search_retrieval"] = new JsonObject() }),
+            ["tools"] = new JsonArray(
+                new JsonObject { ["googleSearch"] = new JsonObject() },
+                new JsonObject { ["urlContext"] = new JsonObject() }),
             ["generationConfig"] = new JsonObject
             {
-                ["response_mime_type"] = "application/json",
-                ["response_schema"] = schema
+                ["responseMimeType"] = "application/json",
+                ["responseJsonSchema"] = schema
             }
         };
     }
