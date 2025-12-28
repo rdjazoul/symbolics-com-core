@@ -50,7 +50,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    needs: build-and-push # Attendre que l'image soit prête avant de déployer
+    needs: build-and-push
     runs-on: ubuntu-24.04
     environment: Staging
     steps:
@@ -61,10 +61,28 @@ jobs:
           username: ${{ secrets.STAGING_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            mkdir -p /app/staging
             cd /app/staging
-            # Mise à jour de l'image sur le serveur
+
+            # RÉCRÉATION DU FICHIER .ENV (Injection des secrets GitHub vers le serveur)
+            echo "ASPNETCORE_ENVIRONMENT=${{ vars.ASPNETCORE_ENVIRONMENT }}" > .env
+            echo "ASPNETCORE_URLS=${{ vars.ASPNETCORE_URLS }}" >> .env
+            echo "CONNECTIONSTRINGS__COREDATABASE=${{ secrets.CONNECTIONSTRINGS__COREDATABASE }}" >> .env
+            echo "QDRANT__URLHTTP=${{ secrets.QDRANT__URLHTTP }}" >> .env
+            echo "QDRANT__URLGRPC=${{ secrets.QDRANT__URLGRPC }}" >> .env
+            echo "GEMINI__DESCRIPTIONAPIKEY=${{ secrets.GEMINI__DESCRIPTIONAPIKEY }}" >> .env
+            echo "GEMINI__EMBEDDINGAPIKEY=${{ secrets.GEMINI__EMBEDDINGAPIKEY }}" >> .env
+            echo "TWITCH__CLIENTID=${{ secrets.TWITCH__CLIENTID }}" >> .env
+            echo "TWITCH__CLIENTSECRET=${{ secrets.TWITCH__CLIENTSECRET }}" >> .env
+            echo "LOG__SEQHEALTHURL=${{ secrets.LOG__SEQHEALTHURL }}" >> .env
+            echo "SERILOG__WRITETO__2__ARGS__SERVERURL=${{ secrets.SERILOG__WRITETO__2__ARGS__SERVERURL }}" >> .env
+            echo "ADMIN__ADMINKEY=${{ secrets.ADMIN__ADMINKEY }}" >> .env
+            echo "CORE_IMAGE_TAG=${{ github.ref_name }}" >> .env
+
+            # MISE À JOUR DOCKER
+            # On se connecte au registre pour pouvoir pull l'image privée
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
             docker compose pull symbolics-com-core
-            # Relance du conteneur avec la nouvelle version
             docker compose up -d symbolics-com-core
-            # Nettoyage des anciennes images inutilisées
             docker image prune -f
