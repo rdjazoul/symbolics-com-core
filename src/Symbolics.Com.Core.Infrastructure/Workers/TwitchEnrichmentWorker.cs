@@ -103,6 +103,14 @@ public sealed class TwitchEnrichmentWorker(
                 aiDescriptions.Consumption.ProcessingTimeMs);
 
             var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.VectorDescription);
+            await consumptionTracker.LogAsync(
+                "Gemini",
+                "GenerateEmbedding",
+                embedding.Consumption.Model,
+                embedding.Consumption.InputUnits,
+                embedding.Consumption.OutputUnits,
+                embedding.Consumption.CachedUnits,
+                embedding.Consumption.ProcessingTimeMs);
             if (!qdrantClient.SaveStreamerDescription(item.StreamerId, embedding.Vector))
             {
                 throw new InvalidOperationException($"Failed to save streamer embedding for {item.StreamerId}.");
@@ -162,6 +170,14 @@ public sealed class TwitchEnrichmentWorker(
                 aiDescriptions.Consumption.ProcessingTimeMs);
 
             var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.VectorDescription);
+            await consumptionTracker.LogAsync(
+                "Gemini",
+                "GenerateEmbedding",
+                embedding.Consumption.Model,
+                embedding.Consumption.InputUnits,
+                embedding.Consumption.OutputUnits,
+                embedding.Consumption.CachedUnits,
+                embedding.Consumption.ProcessingTimeMs);
             if (!qdrantClient.SaveGameDescription(item.GameId, embedding.Vector))
             {
                 throw new InvalidOperationException($"Failed to save game embedding for {item.GameId}.");

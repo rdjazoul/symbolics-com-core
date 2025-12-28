@@ -52,7 +52,15 @@ public sealed class TwitchEnrichmentWorkerTests
         };
         var embeddingResponse = new EmbeddingResponse
         {
-            Vector = [1f, 2f]
+            Vector = [1f, 2f],
+            Consumption = new ConsumptionMetrics
+            {
+                Model = "gemini-embedding",
+                InputUnits = 4,
+                OutputUnits = 2,
+                CachedUnits = 0,
+                ProcessingTimeMs = 50
+            }
         };
 
         var worker = BuildWorker(
@@ -86,6 +94,15 @@ public sealed class TwitchEnrichmentWorkerTests
             2,
             100),
             Times.Once);
+        worker.ConsumptionTracker.Verify(tracker => tracker.LogAsync(
+            "Gemini",
+            "GenerateEmbedding",
+            "gemini-embedding",
+            4,
+            2,
+            0,
+            50),
+            Times.Once);
     }
 
     [Fact]
@@ -111,7 +128,15 @@ public sealed class TwitchEnrichmentWorkerTests
         };
         var embeddingResponse = new EmbeddingResponse
         {
-            Vector = [3f, 4f]
+            Vector = [3f, 4f],
+            Consumption = new ConsumptionMetrics
+            {
+                Model = "gemini-embedding",
+                InputUnits = 5,
+                OutputUnits = 2,
+                CachedUnits = 0,
+                ProcessingTimeMs = 55
+            }
         };
 
         var worker = BuildWorker(
@@ -138,6 +163,15 @@ public sealed class TwitchEnrichmentWorkerTests
             22,
             3,
             120),
+            Times.Once);
+        worker.ConsumptionTracker.Verify(tracker => tracker.LogAsync(
+            "Gemini",
+            "GenerateEmbedding",
+            "gemini-embedding",
+            5,
+            2,
+            0,
+            55),
             Times.Once);
     }
 

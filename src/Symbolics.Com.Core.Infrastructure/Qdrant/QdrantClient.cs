@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
+using Polly.Retry;
 using Symbolics.Com.Core.Contract.Qdrant;
 
 namespace Symbolics.Com.Core.Infrastructure.Qdrant;
@@ -27,12 +29,20 @@ public sealed class QdrantClient : IQdrantClient
 
     public bool SaveGameDescription(Guid gameId, float[] vector)
     {
-        return true;
+        return SaveDescription(
+            "GameVectors",
+            "game_id",
+            gameId,
+            vector);
     }
 
     public bool SaveStreamerDescription(Guid streamerId, float[] vector)
     {
-        return true;
+        return SaveDescription(
+            "StreamerVectors",
+            "streamer_id",
+            streamerId,
+            vector);
     }
 
     public async Task<bool> CheckConnectivityAsync(CancellationToken cancellationToken = default)
@@ -140,5 +150,128 @@ public sealed class QdrantClient : IQdrantClient
         {
             request.Headers.TryAddWithoutValidation("api-key", apiKey);
         }
+    }
+
+    private bool SaveDescription(
+        string collectionName,
+        string payloadKey,
+        Guid entityId,
+        float[] vector)
+    {
+        return SaveDescriptionAsync(collectionName, payloadKey, entityId, vector)
+            .GetAwaiter()
+            .GetResult();
+    }
+
+    private async Task<bool> SaveDescriptionAsync(
+        string collectionName,
+        string payloadKey,
+        Guid entityId,
+        float[] vector,
+        CancellationToken cancellationToken = default)
+    {
+        if (vector is null || vector.Length == 0)
+        {
+            throw new ArgumentException("Vector cannot be empty.", nameof(vector));
+        }
+
+        var options = _optionsMonitor.CurrentValue;
+        if (string.IsNullOrWhiteSpace(options.UrlHttp))
+        {
+            throw new InvalidOperationException("Qdrant URL is missing from configuration.");
+        }
+
+        var pointId = entityId.ToString();
+        var url = $"{options.UrlHttp.TrimEnd('/')}/collections/{collectionName}/points?wait=true";
+        var payload = new
+        {
+            points = new[]
+            {
+                new
+                {
+                    id = pointId,
+                    vector,
+                    payload = new Dictionary<string, string>
+                    {
+                        [payloadKey] = pointId
+                    }
+                }
+            }
+        };
+
+        try
+        {
+            using var response = await SendWithRetryAsync(
+                url,
+                options.ApiKey,
+                payload,
+                cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError(
+                    "Qdrant upsert failed for {CollectionName} with status {StatusCode}: {ErrorContent}",
+                    collectionName,
+                    response.StatusCode,
+                    errorContent);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save Qdrant vector for {CollectionName}.", collectionName);
+            return false;
+        }
+    }
+
+    private async Task<HttpResponseMessage> SendWithRetryAsync(
+        string url,
+        string apiKey,
+        object payload,
+        CancellationToken cancellationToken)
+    {
+        var retryPolicy = BuildRetryPolicy();
+
+        return await retryPolicy.ExecuteAsync(async () =>
+        {
+            using var content = new StringContent(
+                JsonSerializer.Serialize(payload, SerializerOptions),
+                Encoding.UTF8,
+                "application/json");
+            using var request = new HttpRequestMessage(HttpMethod.Put, url)
+            {
+                Content = content
+            };
+            AddApiKeyHeader(request, apiKey);
+
+            return await _httpClient.SendAsync(request, cancellationToken);
+        });
+    }
+
+    private AsyncRetryPolicy<HttpResponseMessage> BuildRetryPolicy()
+    {
+        return Policy<HttpResponseMessage>
+            .Handle<HttpRequestException>()
+            .OrResult(response => response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
+            .WaitAndRetryAsync(
+                retryCount: 3,
+                sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)),
+                onRetry: (outcome, timespan, retryCount, _) =>
+                {
+                    outcome.Result?.Dispose();
+                    if (outcome.Exception is not null)
+                    {
+                        _logger.LogWarning(outcome.Exception, "Retrying Qdrant request (attempt {RetryCount}).", retryCount);
+                        return;
+                    }
+
+                    _logger.LogWarning(
+                        "Retrying Qdrant request due to {StatusCode} (attempt {RetryCount}).",
+                        outcome.Result?.StatusCode,
+                        retryCount);
+                });
     }
 }
