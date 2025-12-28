@@ -1,5 +1,7 @@
 Analyse le streamer "{displayName}" (Twitch ID: {twitchId}, login: {login}) via son URL {url}.
 Bio brute : {rawDescription}
+Notes de recherche précédentes :
+{research}
 1. Produit une description pour recherche vectorielle (thématiques, genres de prédilection, ton du stream, communauté).
 2. Produit un résumé de sa personnalité pour une approche personnalisée par email.
 3. Trouve son email de contact si présent (y compris sous forme "name [at] domain.com") et normalise-le.

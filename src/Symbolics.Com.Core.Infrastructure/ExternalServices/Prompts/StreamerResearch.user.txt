@@ -1,0 +1,5 @@
+Recherche des informations sur le streamer "{displayName}" (Twitch ID: {twitchId}, login: {login}).
+Consulte la page Twitch {url} et effectue une recherche web générale.
+Bio brute : {rawDescription}
+Récupère tout ce qui peut être utile : jeux principaux, genres, ton, fréquence, communauté, réseaux sociaux, sponsors, contacts visibles.
+Réponds uniquement avec la synthèse brute de tout ce que tu trouves, sans format JSON ni commentaires supplémentaires.
