@@ -2,8 +2,6 @@ name: CD - Symbolics Core Staging
 
 on:
   push:
-    branches:
-      - "release/*"
     tags:
       - "v*"
 
