@@ -55,6 +55,8 @@ builder.Services.Configure<TwitchDiscoveryOptions>(builder.Configuration.GetSect
 builder.Services.Configure<TwitchEnrichmentOptions>(builder.Configuration.GetSection("TwitchEnrichment"));
 builder.Services.Configure<StreamMaintenanceOptions>(builder.Configuration.GetSection("StreamMaintenance"));
 builder.Services.Configure<SwaggerSettings>(builder.Configuration.GetSection("Swagger"));
+builder.Services.Configure<RecommendationOptions>(builder.Configuration.GetSection("Recommendations"));
+builder.Services.AddDistributedMemoryCache();
 builder.Services.AddHttpClient<QdrantClient>();
 builder.Services.AddSingleton<IQdrantClient>(sp => sp.GetRequiredService<QdrantClient>());
 builder.Services.AddHttpClient("TwitchAuth");
@@ -77,6 +79,9 @@ builder.Services.AddScoped<IConsumptionTracker, ConsumptionTracker>();
 builder.Services.AddScoped<IWorkerRepository, WorkerRepository>();
 builder.Services.AddScoped<IStreamMaintenanceService, StreamMaintenanceService>();
 builder.Services.AddScoped<ICampaignVectorizationService, CampaignVectorizationService>();
+builder.Services.AddScoped<IRecommendationRepository, RecommendationRepository>();
+builder.Services.AddScoped<IRecommendationService, RecommendationService>();
+builder.Services.AddSingleton<IRecommendationQueue, RecommendationQueue>();
 builder.Services.AddHostedService(sp => {
     var scope = sp.CreateScope();
     return new TwitchDiscoveryWorker(
@@ -95,6 +100,7 @@ builder.Services.AddHostedService(sp =>
         sp.GetRequiredService<ILogger<TwitchEnrichmentWorker>>()
     );
 });
+builder.Services.AddHostedService<RecommendationWorker>();
 builder.Services.AddHostedService<QdrantCollectionInitializer>();
 builder.Services.AddHealthChecks()
     .AddNpgSql(
