@@ -73,6 +73,28 @@ public sealed class QdrantClient : IQdrantClient
         }
     }
 
+    public Task<IReadOnlyList<QdrantSearchResult>> SearchGameVectorsAsync(
+        float[] vector,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        return SearchAsync("GameVectors", vector, limit, null, null, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<QdrantSearchResult>> SearchStreamerVectorsAsync(
+        float[] vector,
+        IReadOnlyCollection<Guid> streamerIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (streamerIds.Count == 0)
+        {
+            return Task.FromResult<IReadOnlyList<QdrantSearchResult>>(Array.Empty<QdrantSearchResult>());
+        }
+
+        var ids = streamerIds.Select(id => id.ToString()).ToArray();
+        return SearchAsync("StreamerVectors", vector, ids.Length, "streamer_id", ids, cancellationToken);
+    }
+
     public async Task EnsureCollectionsAsync(CancellationToken cancellationToken)
     {
         try
@@ -243,6 +265,111 @@ public sealed class QdrantClient : IQdrantClient
         }
     }
 
+    private async Task<IReadOnlyList<QdrantSearchResult>> SearchAsync(
+        string collectionName,
+        float[] vector,
+        int limit,
+        string? filterKey,
+        IReadOnlyCollection<string>? filterValues,
+        CancellationToken cancellationToken)
+    {
+        if (vector is null || vector.Length == 0)
+        {
+            throw new ArgumentException("Vector cannot be empty.", nameof(vector));
+        }
+
+        var options = _optionsMonitor.CurrentValue;
+        if (string.IsNullOrWhiteSpace(options.UrlHttp))
+        {
+            throw new InvalidOperationException("Qdrant URL is missing from configuration.");
+        }
+
+        var url = $"{options.UrlHttp.TrimEnd('/')}/collections/{collectionName}/points/search";
+
+        object? filter = null;
+        if (!string.IsNullOrWhiteSpace(filterKey) && filterValues is { Count: > 0 })
+        {
+            filter = new
+            {
+                must = new[]
+                {
+                    new
+                    {
+                        key = filterKey,
+                        match = new
+                        {
+                            any = filterValues
+                        }
+                    }
+                }
+            };
+        }
+
+        var payload = new
+        {
+            vector,
+            limit,
+            with_payload = false,
+            with_vector = false,
+            filter
+        };
+
+        try
+        {
+            using var response = await SendSearchWithRetryAsync(url, options.ApiKey, payload, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError(
+                    "Qdrant search failed for {CollectionName} with status {StatusCode}: {ErrorContent}",
+                    collectionName,
+                    response.StatusCode,
+                    errorContent);
+                return Array.Empty<QdrantSearchResult>();
+            }
+
+            await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(contentStream, cancellationToken: cancellationToken);
+
+            if (!document.RootElement.TryGetProperty("result", out var resultElement) ||
+                resultElement.ValueKind != JsonValueKind.Array)
+            {
+                return Array.Empty<QdrantSearchResult>();
+            }
+
+            var results = new List<QdrantSearchResult>();
+            foreach (var element in resultElement.EnumerateArray())
+            {
+                if (!element.TryGetProperty("id", out var idElement) ||
+                    !element.TryGetProperty("score", out var scoreElement))
+                {
+                    continue;
+                }
+
+                var id = idElement.ValueKind switch
+                {
+                    JsonValueKind.String => idElement.GetString(),
+                    _ => idElement.ToString()
+                };
+
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    continue;
+                }
+
+                var score = scoreElement.GetSingle();
+                results.Add(new QdrantSearchResult(id, score));
+            }
+
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to search Qdrant collection {CollectionName}.", collectionName);
+            return Array.Empty<QdrantSearchResult>();
+        }
+    }
+
     private async Task<HttpResponseMessage> SendWithRetryAsync(
         string url,
         string apiKey,
@@ -258,6 +385,30 @@ public sealed class QdrantClient : IQdrantClient
                 Encoding.UTF8,
                 "application/json");
             using var request = new HttpRequestMessage(HttpMethod.Put, url)
+            {
+                Content = content
+            };
+            AddApiKeyHeader(request, apiKey);
+
+            return await _httpClient.SendAsync(request, cancellationToken);
+        });
+    }
+
+    private async Task<HttpResponseMessage> SendSearchWithRetryAsync(
+        string url,
+        string apiKey,
+        object payload,
+        CancellationToken cancellationToken)
+    {
+        var retryPolicy = BuildRetryPolicy();
+
+        return await retryPolicy.ExecuteAsync(async () =>
+        {
+            using var content = new StringContent(
+                JsonSerializer.Serialize(payload, SerializerOptions),
+                Encoding.UTF8,
+                "application/json");
+            using var request = new HttpRequestMessage(HttpMethod.Post, url)
             {
                 Content = content
             };

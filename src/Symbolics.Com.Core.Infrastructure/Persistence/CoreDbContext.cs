@@ -16,6 +16,7 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
     public DbSet<GamePlayed> GamePlays => Set<GamePlayed>();
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<ExternalServiceLog> ExternalServiceLogs => Set<ExternalServiceLog>();
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -152,6 +153,14 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
             entity.Property(e => e.CreatedAt);
             entity.HasIndex(e => e.CreatedAt);
             entity.HasIndex(e => new { e.Service, e.ActionType });
+        });
+
+        modelBuilder.Entity<SystemSetting>(entity =>
+        {
+            entity.ToTable("SystemSettings");
+            entity.HasKey(e => e.Key);
+            entity.Property(e => e.Key).HasMaxLength(200);
+            entity.Property(e => e.Value).HasColumnType("text");
         });
     }
 }
