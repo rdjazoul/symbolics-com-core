@@ -25,20 +25,22 @@ public sealed class RecommendationRepository(CoreDbContext dbContext) : IRecomme
                     join twitch in _dbContext.StreamerTwitches.AsNoTracking()
                         on streamer.Id equals twitch.StreamerId
                     where gameIds.Contains(gamePlay.GameId)
-                    select new StreamerGameRow(
-                        streamer.Id,
-                        streamer.Language,
-                        streamer.Email != null,
-                        twitch.TwitchId,
-                        twitch.TwitchLogin,
-                        twitch.TwitchName,
-                        gamePlay.GameId);
+                    select new { gamePlay, streamer, twitch };
 
         if (!string.IsNullOrWhiteSpace(language))
         {
-            query = query.Where(row => row.Language == language);
+            query = query.Where(entry => entry.streamer.Language == language);
         }
 
-        return await query.ToListAsync(cancellationToken);
+        return await query
+            .Select(entry => new StreamerGameRow(
+                entry.streamer.Id,
+                entry.streamer.Language,
+                entry.streamer.Email != null,
+                entry.twitch.TwitchId,
+                entry.twitch.TwitchLogin,
+                entry.twitch.TwitchName,
+                entry.gamePlay.GameId))
+            .ToListAsync(cancellationToken);
     }
 }
