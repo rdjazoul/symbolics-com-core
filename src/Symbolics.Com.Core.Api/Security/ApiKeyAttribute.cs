@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Symbolics.Com.Core.Api.Settings;
 
@@ -19,6 +20,7 @@ public sealed class ApiKeyAttribute : Attribute, IAsyncActionFilter, IFilterFact
     private readonly ApiKeyScope _scope;
     private readonly IOptionsMonitor<AdminSettings>? _adminOptions;
     private readonly IOptionsMonitor<ServiceSettings>? _serviceOptions;
+    private readonly ILogger<ApiKeyAttribute>? _logger;
 
     public ApiKeyAttribute(ApiKeyScope scope)
     {
@@ -28,11 +30,13 @@ public sealed class ApiKeyAttribute : Attribute, IAsyncActionFilter, IFilterFact
     private ApiKeyAttribute(
         ApiKeyScope scope,
         IOptionsMonitor<AdminSettings> adminOptions,
-        IOptionsMonitor<ServiceSettings> serviceOptions)
+        IOptionsMonitor<ServiceSettings> serviceOptions,
+        ILogger<ApiKeyAttribute> logger)
     {
         _scope = scope;
         _adminOptions = adminOptions;
         _serviceOptions = serviceOptions;
+        _logger = logger;
     }
 
     public bool IsReusable => false;
@@ -41,7 +45,8 @@ public sealed class ApiKeyAttribute : Attribute, IAsyncActionFilter, IFilterFact
     {
         var adminOptions = serviceProvider.GetRequiredService<IOptionsMonitor<AdminSettings>>();
         var serviceOptions = serviceProvider.GetRequiredService<IOptionsMonitor<ServiceSettings>>();
-        return new ApiKeyAttribute(_scope, adminOptions, serviceOptions);
+        var logger = serviceProvider.GetRequiredService<ILogger<ApiKeyAttribute>>();
+        return new ApiKeyAttribute(_scope, adminOptions, serviceOptions, logger);
     }
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
@@ -55,6 +60,8 @@ public sealed class ApiKeyAttribute : Attribute, IAsyncActionFilter, IFilterFact
 
         if (string.IsNullOrWhiteSpace(configuredKey))
         {
+            var isNullOrWhiteSpace = string.IsNullOrWhiteSpace(configuredKey);
+            _logger?.LogWarning("API key not configured for scope {Scope}. IsNullOrWhiteSpace: {IsNullOrWhiteSpace}", _scope, isNullOrWhiteSpace);
             context.Result = new UnauthorizedResult();
             return;
         }
@@ -62,6 +69,13 @@ public sealed class ApiKeyAttribute : Attribute, IAsyncActionFilter, IFilterFact
         if (!context.HttpContext.Request.Headers.TryGetValue(headerName, out var providedKey) ||
             !string.Equals(providedKey.ToString(), configuredKey, StringComparison.Ordinal))
         {
+            var maskedConfiguredKey = configuredKey.Length > 4 ? $"*****{configuredKey[^4..]}" : configuredKey;
+            var providedKeyStr = providedKey.ToString();
+            var maskedProvidedKey = providedKeyStr.Length > 4 ? $"*****{providedKeyStr[^4..]}" : providedKeyStr;
+            
+            _logger?.LogWarning("API key mismatch for scope {Scope}. Header: {HeaderName}, Configured: {MaskedConfiguredKey}, Provided: {MaskedProvidedKey}, HeaderExists: {HeaderExists}", 
+                _scope, headerName, maskedConfiguredKey, maskedProvidedKey, context.HttpContext.Request.Headers.ContainsKey(headerName));
+            
             context.Result = new UnauthorizedResult();
             return;
         }
