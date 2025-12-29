@@ -40,7 +40,7 @@ public sealed class GeminiAiServiceTests
             },
             new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(BuildGeminiEnvelope("{\"vector_description\":\"vector\",\"persona_description\":\"persona\",\"email\":null,\"language\":\"fr\"}"))
+                Content = new StringContent(BuildGeminiEnvelope("{\"vector_description\":\"vector\",\"persona_description\":\"persona\",\"email\":null,\"language\":[\"fr\"]}"))
             }
         });
         var handler = new StubHttpMessageHandler(_ => responses.Dequeue());
@@ -67,7 +67,7 @@ public sealed class GeminiAiServiceTests
             },
             new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(BuildGeminiEnvelope("{\"vector_description\":\"vector\",\"persona_description\":\"persona\",\"email\":\"name [at] example dot com\",\"language\":\"en\"}"))
+                Content = new StringContent(BuildGeminiEnvelope("{\"vector_description\":\"vector\",\"persona_description\":\"persona\",\"email\":\"name [at] example dot com\",\"language\":[\"en\"]}"))
             }
         });
         var handler = new StubHttpMessageHandler(_ => responses.Dequeue());
@@ -94,7 +94,7 @@ public sealed class GeminiAiServiceTests
             },
             new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(BuildGeminiEnvelope("{\"vector_description\":\"vector\",\"persona_description\":\"persona\",\"email\":null,\"language\":\"en\"}", promptTokens: 7, candidateTokens: 11, cachedTokens: 2))
+                Content = new StringContent(BuildGeminiEnvelope("{\"vector_description\":\"vector\",\"persona_description\":\"persona\",\"email\":null,\"language\":[\"en\"]}", promptTokens: 7, candidateTokens: 11, cachedTokens: 2))
             }
         });
         var handler = new StubHttpMessageHandler(_ => responses.Dequeue());

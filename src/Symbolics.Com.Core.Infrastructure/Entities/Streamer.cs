@@ -6,7 +6,7 @@ public sealed class Streamer
     public string? VectorDescription { get; set; }
     public string? PersonaDescription { get; set; }
     public string? Email { get; set; }
-    public string? Language { get; set; }
+    public List<string>? Languages { get; set; } = new();
     public DateTime LastModificationDate { get; set; }
     public bool IsReady { get; set; }
 
