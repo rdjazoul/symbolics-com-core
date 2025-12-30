@@ -39,7 +39,6 @@ public sealed record StreamerEnrichmentUpdate(
     string VectorDescription,
     string PersonaDescription,
     string? Email,
-    string? Language,
     DateTime LastModificationDate);
 
 public sealed record GameEnrichmentUpdate(

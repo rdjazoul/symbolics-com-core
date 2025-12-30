@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Symbolics.Com.Core.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Symbolics.Com.Core.Infrastructure.Persistence;
 namespace Symbolics.Com.Core.Infrastructure.Migrations
 {
     [DbContext(typeof(CoreDbContext))]
-    partial class CoreDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251228121000_AddGamePlayedStreamerLanguageIndex")]
+    partial class AddGamePlayedStreamerLanguageIndex
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -52,9 +55,6 @@ namespace Symbolics.Com.Core.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
-
-                    b.Property<long>("CachedUnits")
-                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -210,10 +210,6 @@ namespace Symbolics.Com.Core.Infrastructure.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
 
-                    b.Property<string>("Language")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
                     b.Property<bool>("IsReady")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -307,11 +303,6 @@ namespace Symbolics.Com.Core.Infrastructure.Migrations
 
                     b.Property<string>("CurrentCursor")
                         .HasColumnType("text");
-
-                    b.Property<bool>("IsEnabled")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
 
                     b.Property<DateTime>("LastCleanupDate")
                         .HasColumnType("timestamp with time zone");

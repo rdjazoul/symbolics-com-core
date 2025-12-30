@@ -69,6 +69,10 @@ public sealed class TwitchDiscoveryWorkerTests
             It.Is<IReadOnlyCollection<GameCreation>>(games => games.Count == 1),
             It.IsAny<CancellationToken>()),
             Times.Once);
+        worker.StreamerLanguageService.Verify(service => service.UpdateStreamerLanguageAsync(
+            It.IsAny<Guid>(),
+            It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -137,6 +141,7 @@ public sealed class TwitchDiscoveryWorkerTests
         var twitchService = new Mock<ITwitchService>();
         var workerRepository = new Mock<IWorkerRepository>();
         var streamMaintenanceService = new Mock<IStreamMaintenanceService>();
+        var streamerLanguageService = new Mock<IStreamerLanguageService>();
         var logger = new Mock<ILogger<TwitchDiscoveryWorker>>();
 
         workerRepository.Setup(repository => repository.TryAcquireLockAsync("TwitchDiscovery", It.IsAny<CancellationToken>()))
@@ -157,6 +162,8 @@ public sealed class TwitchDiscoveryWorkerTests
             .Returns(Task.CompletedTask);
         workerRepository.Setup(repository => repository.UpdateWorkerStateAsync(It.IsAny<WorkerStateDto>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        streamerLanguageService.Setup(service => service.UpdateStreamerLanguageAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         twitchService.Setup(service => service.GetStreams(It.IsAny<string?>()))
             .ReturnsAsync(response);
@@ -167,17 +174,19 @@ public sealed class TwitchDiscoveryWorkerTests
             twitchService.Object,
             workerRepository.Object,
             streamMaintenanceService.Object,
+            streamerLanguageService.Object,
             optionsMonitor,
             logger.Object);
 
-        return new WorkerHarness(worker, twitchService, workerRepository, streamMaintenanceService);
+        return new WorkerHarness(worker, twitchService, workerRepository, streamMaintenanceService, streamerLanguageService);
     }
 
     private sealed record WorkerHarness(
         TwitchDiscoveryWorker Worker,
         Mock<ITwitchService> TwitchService,
         Mock<IWorkerRepository> WorkerRepository,
-        Mock<IStreamMaintenanceService> StreamMaintenanceService);
+        Mock<IStreamMaintenanceService> StreamMaintenanceService,
+        Mock<IStreamerLanguageService> StreamerLanguageService);
 
     private sealed class TestOptionsMonitor<T> : IOptionsMonitor<T> where T : class
     {

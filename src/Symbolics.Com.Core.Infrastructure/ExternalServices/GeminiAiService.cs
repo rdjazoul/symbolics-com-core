@@ -365,13 +365,9 @@ public sealed class GeminiAiService : IAiService
                 ["email"] = new JsonObject
                 {
                     ["type"] = new JsonArray("string", "null")
-                },
-                ["language"] = new JsonObject
-                {
-                    ["type"] = new JsonArray("string", "null")
                 }
             },
-            ["required"] = new JsonArray("vector_description", "persona_description", "language")
+            ["required"] = new JsonArray("vector_description", "persona_description")
         };
 
         return BuildStructuredRequest(systemPrompt, userPrompt, schema);

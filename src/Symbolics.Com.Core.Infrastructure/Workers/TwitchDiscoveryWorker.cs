@@ -12,6 +12,7 @@ public sealed class TwitchDiscoveryWorker(
     ITwitchService twitchService,
     IWorkerRepository workerRepository,
     IStreamMaintenanceService streamMaintenanceService,
+    IStreamerLanguageService streamerLanguageService,
     IOptionsMonitor<TwitchDiscoveryOptions> optionsMonitor,
     ILogger<TwitchDiscoveryWorker> logger) : BackgroundService
 {
@@ -19,6 +20,7 @@ public sealed class TwitchDiscoveryWorker(
     private readonly ITwitchService _twitchService = twitchService;
     private readonly IWorkerRepository _workerRepository = workerRepository;
     private readonly IStreamMaintenanceService _streamMaintenanceService = streamMaintenanceService;
+    private readonly IStreamerLanguageService _streamerLanguageService = streamerLanguageService;
     private readonly IOptionsMonitor<TwitchDiscoveryOptions> _optionsMonitor = optionsMonitor;
     private readonly ILogger<TwitchDiscoveryWorker> _logger = logger;
 
@@ -191,6 +193,14 @@ public sealed class TwitchDiscoveryWorker(
         if (gamePlays.Count > 0)
         {
             await _workerRepository.AddGamePlayedBatchAsync(gamePlays, stoppingToken);
+            var streamerIdsToUpdate = gamePlays
+                .Select(entry => entry.StreamerId)
+                .Distinct()
+                .ToArray();
+            foreach (var streamerId in streamerIdsToUpdate)
+            {
+                await _streamerLanguageService.UpdateStreamerLanguageAsync(streamerId, stoppingToken);
+            }
         }
 
         var updatedState = workerState with { CurrentCursor = response.Cursor };
