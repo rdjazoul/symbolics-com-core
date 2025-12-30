@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -37,7 +39,7 @@ public sealed class QdrantClient : IQdrantClient
             vectorDescription);
     }
 
-    public bool SaveStreamerDescription(Guid streamerId, float[] vector, string vectorDescription, string language)
+    public bool SaveStreamerDescription(Guid streamerId, float[] vector, string vectorDescription, IReadOnlyCollection<string> languages)
     {
         return SaveDescription(
             "StreamerVectors",
@@ -45,7 +47,7 @@ public sealed class QdrantClient : IQdrantClient
             streamerId,
             vector,
             vectorDescription,
-            language);
+            languages);
     }
 
     public async Task<bool> CheckConnectivityAsync(CancellationToken cancellationToken = default)
@@ -177,9 +179,9 @@ public sealed class QdrantClient : IQdrantClient
         Guid entityId,
         float[] vector,
         string vectorDescription,
-        string? language = null)
+        IReadOnlyCollection<string>? languages = null)
     {
-        return SaveDescriptionAsync(collectionName, payloadKey, entityId, vector, vectorDescription, language)
+        return SaveDescriptionAsync(collectionName, payloadKey, entityId, vector, vectorDescription, languages)
             .GetAwaiter()
             .GetResult();
     }
@@ -190,7 +192,7 @@ public sealed class QdrantClient : IQdrantClient
         Guid entityId,
         float[] vector,
         string vectorDescription,
-        string? language = null,
+        IReadOnlyCollection<string>? languages = null,
         CancellationToken cancellationToken = default)
     {
         if (vector is null || vector.Length == 0)
@@ -207,15 +209,15 @@ public sealed class QdrantClient : IQdrantClient
         var pointId = entityId.ToString();
         var url = $"{options.UrlHttp.TrimEnd('/')}/collections/{collectionName}/points?wait=true";
         
-        var payloadDict = new Dictionary<string, string>
+        var payloadDict = new Dictionary<string, object>
         {
             [payloadKey] = pointId,
             ["vector_description"] = vectorDescription
         };
         
-        if (!string.IsNullOrWhiteSpace(language))
+        if (languages is { Count: > 0 })
         {
-            payloadDict["language"] = language;
+            payloadDict["language"] = languages.ToArray();
         }
         
         var payload = new

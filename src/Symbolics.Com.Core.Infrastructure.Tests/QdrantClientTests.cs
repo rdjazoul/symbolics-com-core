@@ -33,12 +33,13 @@ public sealed class QdrantClientTests
         var client = BuildClient(handler);
         var streamerId = Guid.NewGuid();
 
-        var result = client.SaveStreamerDescription(streamerId, [1.0f, 2.0f], "", "");
+        var result = client.SaveStreamerDescription(streamerId, [1.0f, 2.0f], "", new[] { "fr", "en" });
 
         Assert.True(result);
         Assert.NotNull(handler.LastRequestContent);
         Assert.Contains(streamerId.ToString(), handler.LastRequestContent);
         Assert.Contains("\"streamer_id\"", handler.LastRequestContent);
+        Assert.Contains("\"language\":[\"fr\",\"en\"]", handler.LastRequestContent);
         Assert.NotNull(handler.LastRequestUri);
         Assert.Contains("StreamerVectors", handler.LastRequestUri!.ToString());
     }

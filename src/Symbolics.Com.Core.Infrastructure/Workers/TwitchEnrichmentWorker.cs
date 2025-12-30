@@ -111,7 +111,7 @@ public sealed class TwitchEnrichmentWorker(
                 embedding.Consumption.OutputUnits,
                 embedding.Consumption.CachedUnits,
                 embedding.Consumption.ProcessingTimeMs);
-            if (!qdrantClient.SaveStreamerDescription(item.StreamerId, embedding.Vector, aiDescriptions.VectorDescription, aiDescriptions.Language ?? string.Empty))
+            if (!qdrantClient.SaveStreamerDescription(item.StreamerId, embedding.Vector, aiDescriptions.VectorDescription, aiDescriptions.Languages))
             {
                 throw new InvalidOperationException($"Failed to save streamer embedding for {item.StreamerId}.");
             }
@@ -124,7 +124,7 @@ public sealed class TwitchEnrichmentWorker(
                 aiDescriptions.VectorDescription,
                 aiDescriptions.PersonaDescription,
                 aiDescriptions.Email,
-                aiDescriptions.Language,
+                aiDescriptions.Languages,
                 DateTime.UtcNow);
 
             await workerRepository.FinalizeStreamerEnrichmentAsync(update, stoppingToken);

@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -40,7 +41,7 @@ public sealed class TwitchEnrichmentWorkerTests
             VectorDescription = "vector",
             PersonaDescription = "persona",
             Email = "streamer@example.com",
-            Language = "fr",
+            Languages = ["fr"],
             Consumption = new ConsumptionMetrics
             {
                 Model = "gemini",
@@ -80,7 +81,7 @@ public sealed class TwitchEnrichmentWorkerTests
             "bio"),
             Times.Once);
         worker.EmbeddingService.Verify(service => service.GenerateEmbedding("vector"), Times.Once);
-        worker.QdrantClient.Verify(client => client.SaveStreamerDescription(streamerItem.StreamerId, embeddingResponse.Vector, "vector", "fr"), Times.Once);
+        worker.QdrantClient.Verify(client => client.SaveStreamerDescription(streamerItem.StreamerId, embeddingResponse.Vector, "vector", It.Is<IReadOnlyCollection<string>>(languages => languages.SequenceEqual(new[] { "fr" }))), Times.Once);
         worker.WorkerRepository.Verify(repository => repository.FinalizeStreamerEnrichmentAsync(
             It.IsAny<StreamerEnrichmentUpdate>(),
             It.IsAny<CancellationToken>()),
@@ -230,7 +231,7 @@ public sealed class TwitchEnrichmentWorkerTests
             .ReturnsAsync(aiGameResponse ?? new AiGameDescriptionResponse());
         embeddingService.Setup(service => service.GenerateEmbedding(It.IsAny<string>()))
             .ReturnsAsync(embeddingResponse ?? new EmbeddingResponse());
-        qdrantClient.Setup(client => client.SaveStreamerDescription(It.IsAny<Guid>(), It.IsAny<float[]>(), It.IsAny<string>(), It.IsAny<string>()))
+        qdrantClient.Setup(client => client.SaveStreamerDescription(It.IsAny<Guid>(), It.IsAny<float[]>(), It.IsAny<string>(), It.IsAny<IReadOnlyCollection<string>>()))
             .Returns(true);
         qdrantClient.Setup(client => client.SaveGameDescription(It.IsAny<Guid>(), It.IsAny<float[]>(), It.IsAny<string>()))
             .Returns(true);

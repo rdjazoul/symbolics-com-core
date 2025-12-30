@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Symbolics.Com.Core.Application.Workers;
 
 public sealed record WorkerStateDto(string WorkerName, string? CurrentCursor, DateTime LastCleanupDate, bool IsEnabled);
@@ -39,7 +41,7 @@ public sealed record StreamerEnrichmentUpdate(
     string VectorDescription,
     string PersonaDescription,
     string? Email,
-    string? Language,
+    IReadOnlyList<string> Languages,
     DateTime LastModificationDate);
 
 public sealed record GameEnrichmentUpdate(

@@ -130,6 +130,7 @@ public sealed class GeminiAiService : IAiService
 
             var response = await SendRequestAsync<AiStreamerDescriptionsResponse>(options, requestBody, structuredStopwatch);
             response.Email = NormalizeEmail(response.Email);
+            response.Languages ??= new List<string>();
 
             if (string.IsNullOrWhiteSpace(response.VectorDescription) || string.IsNullOrWhiteSpace(response.PersonaDescription))
             {
@@ -368,7 +369,11 @@ public sealed class GeminiAiService : IAiService
                 },
                 ["language"] = new JsonObject
                 {
-                    ["type"] = new JsonArray("string", "null")
+                    ["type"] = "array",
+                    ["items"] = new JsonObject
+                    {
+                        ["type"] = "string"
+                    }
                 }
             },
             ["required"] = new JsonArray("vector_description", "persona_description", "language")

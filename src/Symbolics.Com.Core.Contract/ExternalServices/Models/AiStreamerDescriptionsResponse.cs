@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace Symbolics.Com.Core.Contract.ExternalServices.Models;
@@ -14,7 +15,7 @@ public sealed class AiStreamerDescriptionsResponse
     public string? Email { get; set; }
 
     [JsonPropertyName("language")]
-    public string? Language { get; set; }
+    public List<string> Languages { get; set; } = new();
 
     public ConsumptionMetrics Consumption { get; set; } = new();
 }
