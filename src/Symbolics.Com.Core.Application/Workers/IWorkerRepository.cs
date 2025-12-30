@@ -13,6 +13,7 @@ public interface IWorkerRepository
     Task AddGamesAsync(IEnumerable<GameCreation> games, CancellationToken cancellationToken = default);
     Task<IReadOnlySet<string>> GetExistingStreamIdsAsync(IEnumerable<string> streamIds, CancellationToken cancellationToken = default);
     Task AddGamePlayedBatchAsync(IEnumerable<GamePlayedCreation> gamePlays, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Guid>> GetStreamerIdsByGameIdAsync(Guid gameId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<StreamerEnrichmentQueueItem>> GetStreamerEnrichmentQueueAsync(
         int maxRetryCount,
         CancellationToken cancellationToken = default);

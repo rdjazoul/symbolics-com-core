@@ -80,6 +80,7 @@ builder.Services.AddScoped<IConsumptionTracker, ConsumptionTracker>();
 builder.Services.AddScoped<IWorkerRepository, WorkerRepository>();
 builder.Services.AddScoped<IStreamMaintenanceService, StreamMaintenanceService>();
 builder.Services.AddScoped<IStreamerLanguageService, StreamerLanguageService>();
+builder.Services.AddScoped<IStreamerStatsService, StreamerStatsService>();
 builder.Services.AddScoped<ICampaignVectorizationService, CampaignVectorizationService>();
 builder.Services.AddScoped<IRecommendationRepository, RecommendationRepository>();
 builder.Services.AddScoped<IStreamerRepository, StreamerRepository>();
@@ -92,6 +93,7 @@ builder.Services.AddHostedService(sp => {
         scope.ServiceProvider.GetRequiredService<IWorkerRepository>(),
         scope.ServiceProvider.GetRequiredService<IStreamMaintenanceService>(),
         scope.ServiceProvider.GetRequiredService<IStreamerLanguageService>(),
+        scope.ServiceProvider.GetRequiredService<IStreamerStatsService>(),
         sp.GetRequiredService<IOptionsMonitor<TwitchDiscoveryOptions>>(),
         sp.GetRequiredService<ILogger<TwitchDiscoveryWorker>>()
     );

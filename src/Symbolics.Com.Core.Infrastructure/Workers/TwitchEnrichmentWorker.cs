@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
+using Symbolics.Com.Core.Application.Services;
 using Symbolics.Com.Core.Application.Workers;
 using Symbolics.Com.Core.Contract.ExternalServices;
 using Symbolics.Com.Core.Contract.Qdrant;
@@ -84,6 +85,7 @@ public sealed class TwitchEnrichmentWorker(
             var consumptionTracker = scope.ServiceProvider.GetRequiredService<IConsumptionTracker>();
             var qdrantClient = scope.ServiceProvider.GetRequiredService<IQdrantClient>();
             var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
+            var streamerStatsService = scope.ServiceProvider.GetRequiredService<IStreamerStatsService>();
 
             var twitchInfo = await twitchService.GetStreamerInfos(item.TwitchLogin);
             var streamerUrl = $"https://www.twitch.tv/{twitchInfo.Login}";
@@ -156,6 +158,7 @@ public sealed class TwitchEnrichmentWorker(
             var consumptionTracker = scope.ServiceProvider.GetRequiredService<IConsumptionTracker>();
             var qdrantClient = scope.ServiceProvider.GetRequiredService<IQdrantClient>();
             var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
+            var streamerStatsService = scope.ServiceProvider.GetRequiredService<IStreamerStatsService>();
 
             var twitchInfo = await twitchService.GetGameInfos(item.TwitchId);
             var aiDescriptions = await aiService.GenerateGameDescription(twitchInfo.Id, twitchInfo.Name);
@@ -190,6 +193,12 @@ public sealed class TwitchEnrichmentWorker(
                 string.IsNullOrWhiteSpace(twitchInfo.IgdbId) ? null : twitchInfo.IgdbId);
 
             await workerRepository.FinalizeGameEnrichmentAsync(update, stoppingToken);
+
+            if (!string.IsNullOrWhiteSpace(update.IgdbId))
+            {
+                var streamerIds = await workerRepository.GetStreamerIdsByGameIdAsync(item.GameId, stoppingToken);
+                await streamerStatsService.UpdateGamingRatioAsync(streamerIds, stoppingToken);
+            }
         }
         catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
         {

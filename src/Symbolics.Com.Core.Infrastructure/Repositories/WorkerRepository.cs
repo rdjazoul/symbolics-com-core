@@ -264,6 +264,16 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
             cancellationToken: cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Guid>> GetStreamerIdsByGameIdAsync(Guid gameId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.GamePlays
+            .AsNoTracking()
+            .Where(entry => entry.GameId == gameId)
+            .Select(entry => entry.StreamerId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<StreamerEnrichmentQueueItem>> GetStreamerEnrichmentQueueAsync(
         int maxRetryCount,
         CancellationToken cancellationToken = default)
