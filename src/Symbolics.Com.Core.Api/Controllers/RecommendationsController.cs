@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Symbolics.Com.Core.Api.Models;
 using Symbolics.Com.Core.Api.Security;
 using Symbolics.Com.Core.Application.Services;
+using Symbolics.Com.Core.Contract.ExternalServices;
 
 namespace Symbolics.Com.Core.Api.Controllers;
 
@@ -13,12 +14,15 @@ namespace Symbolics.Com.Core.Api.Controllers;
 [ApiKey(ApiKeyScope.Service)]
 public sealed class RecommendationsController(
     IRecommendationQueue recommendationQueue,
+    IEmbeddingService embeddingService,
     IDistributedCache cache,
     IOptionsMonitor<RecommendationOptions> optionsMonitor,
     ILogger<RecommendationsController> logger) : ControllerBase
 {
+    private const int MinimumDescriptionLength = 10;
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
     private readonly IRecommendationQueue _recommendationQueue = recommendationQueue;
+    private readonly IEmbeddingService _embeddingService = embeddingService;
     private readonly IDistributedCache _cache = cache;
     private readonly IOptionsMonitor<RecommendationOptions> _optionsMonitor = optionsMonitor;
     private readonly ILogger<RecommendationsController> _logger = logger;
@@ -42,6 +46,33 @@ public sealed class RecommendationsController(
 
         await _recommendationQueue.QueueAsync(
             new RecommendationJob(searchId, request.Vector, request.Language),
+            cancellationToken);
+
+        return Accepted(new RecommendationAcceptedResponse(searchId));
+    }
+
+    [HttpPost("express")]
+    [ProducesResponseType(typeof(RecommendationAcceptedResponse), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> SubmitExpressRecommendation(
+        [FromBody] ExpressRecommendationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var description = request.Description?.Trim();
+        if (string.IsNullOrWhiteSpace(description) || description.Length < MinimumDescriptionLength)
+        {
+            return BadRequest($"Description must be at least {MinimumDescriptionLength} characters long.");
+        }
+
+        var embedding = await _embeddingService.GenerateEmbedding(description);
+
+        var searchId = Guid.NewGuid();
+        var entry = new RecommendationCacheEntry(RecommendationStatus.Processing, null);
+        await SetCacheAsync(searchId, entry, cancellationToken);
+
+        await _recommendationQueue.QueueAsync(
+            new RecommendationJob(searchId, embedding.Vector, request.Language),
             cancellationToken);
 
         return Accepted(new RecommendationAcceptedResponse(searchId));
