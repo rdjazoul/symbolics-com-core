@@ -14,51 +14,51 @@ public sealed class StreamerRepository(CoreDbContext dbContext) : IStreamerRepos
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        var baseQuery = from gamePlay in _dbContext.GamePlays.AsNoTracking()
-                        join streamer in _dbContext.Streamers.AsNoTracking()
-                            on gamePlay.StreamerId equals streamer.Id
-                        join twitch in _dbContext.StreamerTwitches.AsNoTracking()
-                            on streamer.Id equals twitch.StreamerId
-                        select new
-                        {
-                            streamer.Id,
-                            streamer.Email,
-                            twitch.TwitchId,
-                            twitch.TwitchLogin,
-                            twitch.TwitchName,
-                            gamePlay.Language
-                        };
+        var streamerQuery = _dbContext.Streamers
+            .AsNoTracking()
+            .Where(streamer => streamer.IsReady);
 
         if (!string.IsNullOrWhiteSpace(language))
         {
-            baseQuery = baseQuery.Where(entry => entry.Language == language);
+            streamerQuery = streamerQuery.Where(streamer => streamer.Language == language);
         }
 
-        var distinctQuery = baseQuery
-            .GroupBy(entry => new
-            {
-                entry.Id,
-                entry.Email,
-                entry.TwitchId,
-                entry.TwitchLogin,
-                entry.TwitchName,
-                entry.Language
-            })
-            .Select(group => new StreamerListingRow(
-                group.Key.Id,
-                group.Key.TwitchId,
-                group.Key.Language,
-                !string.IsNullOrWhiteSpace(group.Key.Email),
-                group.Key.TwitchLogin,
-                group.Key.TwitchName));
+        var query = from streamer in streamerQuery
+                    join twitch in _dbContext.StreamerTwitches.AsNoTracking()
+                        on streamer.Id equals twitch.StreamerId
+                    select new
+                    {
+                        StreamerId = streamer.Id,
+                        streamer.Language,
+                        streamer.Email,
+                        twitch.TwitchId,
+                        twitch.TwitchLogin,
+                        twitch.TwitchName
+                    };
 
-        var totalCount = await distinctQuery.CountAsync(cancellationToken);
-        var items = await distinctQuery
-            .OrderBy(entry => entry.StreamerId)
-            .Skip((page - 1) * pageSize)
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var skip = (page - 1) * pageSize;
+        if (skip < 0)
+        {
+            skip = 0;
+        }
+
+        var items = await query
+            .OrderBy(entry => entry.TwitchName)
+            .ThenBy(entry => entry.StreamerId)
+            .Skip(skip)
             .Take(pageSize)
+            .Select(entry => new StreamerListingRow(
+                entry.StreamerId,
+                entry.TwitchId,
+                entry.Language ?? string.Empty,
+                entry.Email != null,
+                entry.TwitchLogin,
+                entry.TwitchName))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<StreamerListingRow>(items, totalCount);
     }
 }
+
