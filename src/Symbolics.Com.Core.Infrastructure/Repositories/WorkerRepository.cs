@@ -63,6 +63,31 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<DailyCostTotals> GetDailyCostTotalsAsync(DateTime dayUtc, CancellationToken cancellationToken = default)
+    {
+        var start = dayUtc.Date;
+        var end = start.AddDays(1);
+
+        var baseQuery = _dbContext.ExternalServiceLogs
+            .AsNoTracking()
+            .Where(log => log.CreatedAt >= start && log.CreatedAt < end);
+
+        var embeddingUnits = await baseQuery
+            .Where(log => log.ActionType == "GenerateEmbedding")
+            .SumAsync(log => (long?)log.InputUnits, cancellationToken) ?? 0;
+
+        var descriptionQuery = baseQuery.Where(log =>
+            log.ActionType == "GenerateGameDescription" || log.ActionType == "GenerateStreamerDescription");
+
+        var descriptionInputUnits = await descriptionQuery
+            .SumAsync(log => (long?)log.InputUnits, cancellationToken) ?? 0;
+
+        var descriptionOutputUnits = await descriptionQuery
+            .SumAsync(log => (long?)log.OutputUnits, cancellationToken) ?? 0;
+
+        return new DailyCostTotals(embeddingUnits, descriptionInputUnits, descriptionOutputUnits);
+    }
+
     public async Task<bool> TryAcquireLockAsync(string workerName, CancellationToken cancellationToken = default)
     {
         var connection = _dbContext.Database.GetDbConnection();

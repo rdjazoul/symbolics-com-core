@@ -9,4 +9,7 @@ public sealed class GeminiOptions
     public string EmbeddingApiKey { get; set; } = string.Empty;
     public string EmbeddingModel { get; set; } = "gemini-embedding-001";
     public int EmbeddingDimensions { get; set; } = 1536;
+    public decimal EmbeddingCostPerMillion { get; set; } = 0.025m;
+    public decimal DescriptionInputCostPerMillion { get; set; } = 0.1m;
+    public decimal DescriptionOutputCostPerMillion { get; set; } = 0.4m;
 }
