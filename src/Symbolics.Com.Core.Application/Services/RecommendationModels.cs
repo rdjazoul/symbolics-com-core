@@ -10,7 +10,8 @@ public sealed record MatchResult(
     string TwitchLogin,
     string TwitchName,
     string UrlTwitch,
-    double FinalScore);
+    double FinalScore,
+    float GamingRatio);
 
 public sealed record StreamerGameRow(
     Guid StreamerId,
@@ -19,7 +20,8 @@ public sealed record StreamerGameRow(
     string TwitchId,
     string TwitchLogin,
     string TwitchName,
-    Guid GameId);
+    Guid GameId,
+    float GamingRatio);
 
 public static class RecommendationStatus
 {
