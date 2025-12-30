@@ -186,7 +186,8 @@ public sealed class TwitchEnrichmentWorker(
                 item.GameId,
                 twitchInfo.Id,
                 twitchInfo.Name,
-                aiDescriptions.VectorDescription);
+                aiDescriptions.VectorDescription,
+                string.IsNullOrWhiteSpace(twitchInfo.IgdbId) ? null : twitchInfo.IgdbId);
 
             await workerRepository.FinalizeGameEnrichmentAsync(update, stoppingToken);
         }

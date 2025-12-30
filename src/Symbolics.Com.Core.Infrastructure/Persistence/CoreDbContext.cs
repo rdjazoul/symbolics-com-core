@@ -34,6 +34,7 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
             entity.ToTable("Game");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).HasMaxLength(250).IsRequired();
+            entity.Property(e => e.IgdbId).HasMaxLength(200);
             entity.Property(e => e.VectorDescription).HasColumnType("text");
             entity.Property(e => e.IsReady).HasDefaultValue(false);
             entity.HasIndex(e => e.Id)

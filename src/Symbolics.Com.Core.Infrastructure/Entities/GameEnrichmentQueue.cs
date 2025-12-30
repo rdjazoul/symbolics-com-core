@@ -6,6 +6,7 @@ public sealed class GameEnrichmentQueue
     public EnrichmentStatus Status { get; set; }
     public int RetryCount { get; set; }
     public DateTime AddedAt { get; set; }
+    public DateTime? LastAttempt { get; set; }
 
     public Game? Game { get; set; }
 }
