@@ -7,5 +7,6 @@ public interface IRecommendationRepository
     Task<IReadOnlyList<StreamerGameRow>> GetStreamerGameRowsAsync(
         IReadOnlyCollection<Guid> gameIds,
         string? language,
+        double minimumGamingRatio,
         CancellationToken cancellationToken = default);
 }

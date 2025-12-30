@@ -12,6 +12,7 @@ public sealed class RecommendationRepository(CoreDbContext dbContext) : IRecomme
     public async Task<IReadOnlyList<StreamerGameRow>> GetStreamerGameRowsAsync(
         IReadOnlyCollection<Guid> gameIds,
         string? language,
+        double minimumGamingRatio,
         CancellationToken cancellationToken = default)
     {
         if (gameIds.Count == 0)
@@ -20,11 +21,15 @@ public sealed class RecommendationRepository(CoreDbContext dbContext) : IRecomme
         }
 
         var query = from gamePlay in _dbContext.GamePlays.AsNoTracking()
+                    join game in _dbContext.Games.AsNoTracking()
+                        on gamePlay.GameId equals game.Id
                     join streamer in _dbContext.Streamers.AsNoTracking()
                         on gamePlay.StreamerId equals streamer.Id
                     join twitch in _dbContext.StreamerTwitches.AsNoTracking()
                         on streamer.Id equals twitch.StreamerId
                     where gameIds.Contains(gamePlay.GameId)
+                        && game.IgdbId != null
+                        && streamer.GamingRatio >= minimumGamingRatio
                     select new { gamePlay, streamer, twitch };
 
         if (!string.IsNullOrWhiteSpace(language))
@@ -40,7 +45,8 @@ public sealed class RecommendationRepository(CoreDbContext dbContext) : IRecomme
                 entry.twitch.TwitchId,
                 entry.twitch.TwitchLogin,
                 entry.twitch.TwitchName,
-                entry.gamePlay.GameId))
+                entry.gamePlay.GameId,
+                entry.streamer.GamingRatio))
             .ToListAsync(cancellationToken);
     }
 }

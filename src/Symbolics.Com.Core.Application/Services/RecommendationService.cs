@@ -49,7 +49,12 @@ public sealed class RecommendationService(
         }
 
         var gameIds = gameResults.Select(result => result.Id).ToArray();
-        var rows = await _recommendationRepository.GetStreamerGameRowsAsync(gameIds, language, cancellationToken);
+        var minimumGamingRatio = _optionsMonitor.CurrentValue.MinimumGamingRatio;
+        var rows = await _recommendationRepository.GetStreamerGameRowsAsync(
+            gameIds,
+            language,
+            minimumGamingRatio,
+            cancellationToken);
         if (rows.Count == 0)
         {
             _logger.LogInformation("No streamers found after filtering by top games.");
@@ -95,7 +100,8 @@ public sealed class RecommendationService(
             representative.TwitchLogin,
             representative.TwitchName,
             BuildTwitchUrl(representative.TwitchLogin),
-            finalScore);
+            finalScore,
+            representative.GamingRatio);
     }
 
     private static string BuildTwitchUrl(string twitchLogin)
