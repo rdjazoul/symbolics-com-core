@@ -45,6 +45,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddDbContext<CoreDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
 builder.Services.AddScoped<IStreamRepository, StreamRepository>();
+builder.Services.AddScoped<IStreamerRepository, StreamerRepository>();
 builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection("Admin"));
 builder.Services.Configure<ServiceSettings>(builder.Configuration.GetSection("Service"));
 builder.Services.Configure<GeminiOptions>(builder.Configuration.GetSection("Gemini"));
@@ -81,9 +82,9 @@ builder.Services.AddScoped<IWorkerRepository, WorkerRepository>();
 builder.Services.AddScoped<IStreamMaintenanceService, StreamMaintenanceService>();
 builder.Services.AddScoped<IStreamerLanguageService, StreamerLanguageService>();
 builder.Services.AddScoped<IStreamerStatsService, StreamerStatsService>();
+builder.Services.AddScoped<IAdminGameService, AdminGameService>();
 builder.Services.AddScoped<ICampaignVectorizationService, CampaignVectorizationService>();
 builder.Services.AddScoped<IRecommendationRepository, RecommendationRepository>();
-builder.Services.AddScoped<IStreamerRepository, StreamerRepository>();
 builder.Services.AddScoped<IRecommendationService, RecommendationService>();
 builder.Services.AddSingleton<IRecommendationQueue, RecommendationQueue>();
 builder.Services.AddHostedService(sp => {
