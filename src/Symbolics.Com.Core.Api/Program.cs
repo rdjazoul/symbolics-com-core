@@ -81,6 +81,7 @@ builder.Services.AddScoped<IWorkerRepository, WorkerRepository>();
 builder.Services.AddScoped<IStreamMaintenanceService, StreamMaintenanceService>();
 builder.Services.AddScoped<IStreamerLanguageService, StreamerLanguageService>();
 builder.Services.AddScoped<IStreamerStatsService, StreamerStatsService>();
+builder.Services.AddScoped<IAdminGameService, AdminGameService>();
 builder.Services.AddScoped<ICampaignVectorizationService, CampaignVectorizationService>();
 builder.Services.AddScoped<IRecommendationRepository, RecommendationRepository>();
 builder.Services.AddScoped<IStreamerRepository, StreamerRepository>();
