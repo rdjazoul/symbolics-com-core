@@ -13,6 +13,7 @@ public sealed class TwitchDiscoveryWorker(
     IWorkerRepository workerRepository,
     IStreamMaintenanceService streamMaintenanceService,
     IStreamerLanguageService streamerLanguageService,
+    IStreamerStatsService streamerStatsService,
     IOptionsMonitor<TwitchDiscoveryOptions> optionsMonitor,
     ILogger<TwitchDiscoveryWorker> logger) : BackgroundService
 {
@@ -21,6 +22,7 @@ public sealed class TwitchDiscoveryWorker(
     private readonly IWorkerRepository _workerRepository = workerRepository;
     private readonly IStreamMaintenanceService _streamMaintenanceService = streamMaintenanceService;
     private readonly IStreamerLanguageService _streamerLanguageService = streamerLanguageService;
+    private readonly IStreamerStatsService _streamerStatsService = streamerStatsService;
     private readonly IOptionsMonitor<TwitchDiscoveryOptions> _optionsMonitor = optionsMonitor;
     private readonly ILogger<TwitchDiscoveryWorker> _logger = logger;
 
@@ -201,6 +203,8 @@ public sealed class TwitchDiscoveryWorker(
             {
                 await _streamerLanguageService.UpdateStreamerLanguageAsync(streamerId, stoppingToken);
             }
+
+            await _streamerStatsService.UpdateGamingRatioAsync(streamerIdsToUpdate, stoppingToken);
         }
 
         var updatedState = workerState with { CurrentCursor = response.Cursor };

@@ -142,6 +142,7 @@ public sealed class TwitchDiscoveryWorkerTests
         var workerRepository = new Mock<IWorkerRepository>();
         var streamMaintenanceService = new Mock<IStreamMaintenanceService>();
         var streamerLanguageService = new Mock<IStreamerLanguageService>();
+        var streamerStatsService = new Mock<IStreamerStatsService>();
         var logger = new Mock<ILogger<TwitchDiscoveryWorker>>();
 
         workerRepository.Setup(repository => repository.TryAcquireLockAsync("TwitchDiscovery", It.IsAny<CancellationToken>()))
@@ -164,6 +165,8 @@ public sealed class TwitchDiscoveryWorkerTests
             .Returns(Task.CompletedTask);
         streamerLanguageService.Setup(service => service.UpdateStreamerLanguageAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        streamerStatsService.Setup(service => service.UpdateGamingRatioAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         twitchService.Setup(service => service.GetStreams(It.IsAny<string?>()))
             .ReturnsAsync(response);
@@ -175,10 +178,11 @@ public sealed class TwitchDiscoveryWorkerTests
             workerRepository.Object,
             streamMaintenanceService.Object,
             streamerLanguageService.Object,
+            streamerStatsService.Object,
             optionsMonitor,
             logger.Object);
 
-        return new WorkerHarness(worker, twitchService, workerRepository, streamMaintenanceService, streamerLanguageService);
+        return new WorkerHarness(worker, twitchService, workerRepository, streamMaintenanceService, streamerLanguageService, streamerStatsService);
     }
 
     private sealed record WorkerHarness(
@@ -186,7 +190,8 @@ public sealed class TwitchDiscoveryWorkerTests
         Mock<ITwitchService> TwitchService,
         Mock<IWorkerRepository> WorkerRepository,
         Mock<IStreamMaintenanceService> StreamMaintenanceService,
-        Mock<IStreamerLanguageService> StreamerLanguageService);
+        Mock<IStreamerLanguageService> StreamerLanguageService,
+        Mock<IStreamerStatsService> StreamerStatsService);
 
     private sealed class TestOptionsMonitor<T> : IOptionsMonitor<T> where T : class
     {

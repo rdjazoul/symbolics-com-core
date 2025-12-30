@@ -7,6 +7,7 @@ public sealed class Streamer
     public string? PersonaDescription { get; set; }
     public string? Email { get; set; }
     public string? Language { get; set; }
+    public float GamingRatio { get; set; }
     public DateTime LastModificationDate { get; set; }
     public bool IsReady { get; set; }
 

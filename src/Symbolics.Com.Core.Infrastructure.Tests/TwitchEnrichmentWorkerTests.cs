@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
+using Symbolics.Com.Core.Application.Services;
 using Symbolics.Com.Core.Application.Workers;
 using Symbolics.Com.Core.Contract.ExternalServices;
 using Symbolics.Com.Core.Contract.ExternalServices.Models;
@@ -189,6 +190,7 @@ public sealed class TwitchEnrichmentWorkerTests
         var consumptionTracker = new Mock<IConsumptionTracker>();
         var qdrantClient = new Mock<IQdrantClient>();
         var workerRepository = new Mock<IWorkerRepository>();
+        var streamerStatsService = new Mock<IStreamerStatsService>();
         var logger = new Mock<ILogger<TwitchEnrichmentWorker>>();
 
         var services = new ServiceCollection();
@@ -198,6 +200,7 @@ public sealed class TwitchEnrichmentWorkerTests
         services.AddSingleton(consumptionTracker.Object);
         services.AddSingleton(qdrantClient.Object);
         services.AddSingleton(workerRepository.Object);
+        services.AddSingleton(streamerStatsService.Object);
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = new TestScopeFactory(serviceProvider);
 
@@ -209,9 +212,13 @@ public sealed class TwitchEnrichmentWorkerTests
             .Returns(Task.CompletedTask);
         workerRepository.Setup(repository => repository.FinalizeGameEnrichmentAsync(It.IsAny<GameEnrichmentUpdate>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        workerRepository.Setup(repository => repository.GetStreamerIdsByGameIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
         workerRepository.Setup(repository => repository.IncrementStreamerRetryAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         workerRepository.Setup(repository => repository.IncrementGameRetryAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        streamerStatsService.Setup(service => service.UpdateGamingRatioAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         twitchService.Setup(service => service.GetStreamerInfos(It.IsAny<string>()))
@@ -244,7 +251,7 @@ public sealed class TwitchEnrichmentWorkerTests
             optionsMonitor,
             logger.Object);
 
-        return new WorkerHarness(worker, twitchService, aiService, embeddingService, consumptionTracker, qdrantClient, workerRepository);
+        return new WorkerHarness(worker, twitchService, aiService, embeddingService, consumptionTracker, qdrantClient, workerRepository, streamerStatsService);
     }
 
     private sealed record WorkerHarness(
@@ -254,7 +261,8 @@ public sealed class TwitchEnrichmentWorkerTests
         Mock<IEmbeddingService> EmbeddingService,
         Mock<IConsumptionTracker> ConsumptionTracker,
         Mock<IQdrantClient> QdrantClient,
-        Mock<IWorkerRepository> WorkerRepository);
+        Mock<IWorkerRepository> WorkerRepository,
+        Mock<IStreamerStatsService> StreamerStatsService);
 
     private sealed class TestOptionsMonitor<T> : IOptionsMonitor<T> where T : class
     {

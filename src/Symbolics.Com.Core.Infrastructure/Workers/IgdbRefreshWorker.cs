@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Symbolics.Com.Core.Application.Services;
 using Symbolics.Com.Core.Application.Workers;
 using Symbolics.Com.Core.Contract.ExternalServices;
 
@@ -75,11 +76,14 @@ public sealed class IgdbRefreshWorker(
             using var scope = _scopeFactory.CreateScope();
             var twitchService = scope.ServiceProvider.GetRequiredService<ITwitchService>();
             var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
+            var streamerStatsService = scope.ServiceProvider.GetRequiredService<IStreamerStatsService>();
 
             var twitchInfo = await twitchService.GetGameInfos(item.TwitchId);
             if (!string.IsNullOrWhiteSpace(twitchInfo.IgdbId))
             {
                 await workerRepository.CompleteGameIgdbRefreshAsync(item.GameId, twitchInfo.IgdbId, stoppingToken);
+                var streamerIds = await workerRepository.GetStreamerIdsByGameIdAsync(item.GameId, stoppingToken);
+                await streamerStatsService.UpdateGamingRatioAsync(streamerIds, stoppingToken);
             }
             else
             {
