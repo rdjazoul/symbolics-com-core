@@ -129,6 +129,7 @@ public sealed class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbC
                 .HasForeignKey(e => e.GameId)
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(e => e.Date);
+            entity.HasIndex(e => new { e.StreamerId, e.Language });
             entity.HasIndex(e => new { e.StreamerId, e.GameId, e.Date }).IsUnique();
             entity.HasIndex(e => e.TwitchStreamId).IsUnique();
         });

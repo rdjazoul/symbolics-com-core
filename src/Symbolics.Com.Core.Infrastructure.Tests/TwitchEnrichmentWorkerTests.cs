@@ -40,7 +40,6 @@ public sealed class TwitchEnrichmentWorkerTests
             VectorDescription = "vector",
             PersonaDescription = "persona",
             Email = "streamer@example.com",
-            Language = "fr",
             Consumption = new ConsumptionMetrics
             {
                 Model = "gemini",
@@ -80,7 +79,7 @@ public sealed class TwitchEnrichmentWorkerTests
             "bio"),
             Times.Once);
         worker.EmbeddingService.Verify(service => service.GenerateEmbedding("vector"), Times.Once);
-        worker.QdrantClient.Verify(client => client.SaveStreamerDescription(streamerItem.StreamerId, embeddingResponse.Vector, "vector", "fr"), Times.Once);
+        worker.QdrantClient.Verify(client => client.SaveStreamerDescription(streamerItem.StreamerId, embeddingResponse.Vector, "vector", string.Empty), Times.Once);
         worker.WorkerRepository.Verify(repository => repository.FinalizeStreamerEnrichmentAsync(
             It.IsAny<StreamerEnrichmentUpdate>(),
             It.IsAny<CancellationToken>()),
