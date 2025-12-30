@@ -158,6 +158,7 @@ public sealed class TwitchEnrichmentWorker(
             var consumptionTracker = scope.ServiceProvider.GetRequiredService<IConsumptionTracker>();
             var qdrantClient = scope.ServiceProvider.GetRequiredService<IQdrantClient>();
             var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
+            var streamerStatsService = scope.ServiceProvider.GetRequiredService<IStreamerStatsService>();
 
             var twitchInfo = await twitchService.GetGameInfos(item.TwitchId);
             var aiDescriptions = await aiService.GenerateGameDescription(twitchInfo.Id, twitchInfo.Name);
