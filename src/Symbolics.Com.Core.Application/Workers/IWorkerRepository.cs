@@ -19,8 +19,13 @@ public interface IWorkerRepository
     Task<IReadOnlyList<GameEnrichmentQueueItem>> GetGameEnrichmentQueueAsync(
         int maxRetryCount,
         CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<GameEnrichmentQueueItem>> GetMissingIgdbQueueAsync(
+        DateTime retryBefore,
+        CancellationToken cancellationToken = default);
     Task FinalizeStreamerEnrichmentAsync(StreamerEnrichmentUpdate update, CancellationToken cancellationToken = default);
     Task FinalizeGameEnrichmentAsync(GameEnrichmentUpdate update, CancellationToken cancellationToken = default);
+    Task MarkGameMissingIgdbAsync(Guid gameId, DateTime attemptAt, CancellationToken cancellationToken = default);
+    Task CompleteGameIgdbRefreshAsync(Guid gameId, string igdbId, CancellationToken cancellationToken = default);
     Task IncrementStreamerRetryAsync(Guid streamerId, CancellationToken cancellationToken = default);
     Task IncrementGameRetryAsync(Guid gameId, CancellationToken cancellationToken = default);
 }

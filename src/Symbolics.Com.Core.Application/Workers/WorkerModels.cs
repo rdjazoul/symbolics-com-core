@@ -45,4 +45,5 @@ public sealed record GameEnrichmentUpdate(
     Guid GameId,
     string TwitchId,
     string TwitchName,
-    string VectorDescription);
+    string VectorDescription,
+    string? IgdbId);

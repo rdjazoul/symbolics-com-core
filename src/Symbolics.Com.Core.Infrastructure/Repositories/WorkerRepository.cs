@@ -304,6 +304,26 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<GameEnrichmentQueueItem>> GetMissingIgdbQueueAsync(
+        DateTime retryBefore,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.GameEnrichmentQueues
+            .AsNoTracking()
+            .Where(entity => entity.Status == EnrichmentStatus.MissingIgdb)
+            .Where(entity => (entity.LastAttempt ?? entity.AddedAt) <= retryBefore)
+            .Join(
+                _dbContext.GameTwitches.AsNoTracking(),
+                queue => queue.GameId,
+                twitch => twitch.GameId,
+                (queue, twitch) => new { queue.GameId, twitch.TwitchId })
+            .GroupBy(entry => entry.GameId)
+            .Select(group => new GameEnrichmentQueueItem(
+                group.Key,
+                group.Select(entry => entry.TwitchId).First()))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task FinalizeStreamerEnrichmentAsync(StreamerEnrichmentUpdate update, CancellationToken cancellationToken = default)
     {
         var streamer = await _dbContext.Streamers
@@ -374,6 +394,7 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
         }
 
         game.Name = update.TwitchName;
+        game.IgdbId = string.IsNullOrWhiteSpace(update.IgdbId) ? game.IgdbId : update.IgdbId;
         game.VectorDescription = update.VectorDescription;
         game.IsReady = true;
 
@@ -400,7 +421,52 @@ public sealed class WorkerRepository(CoreDbContext dbContext) : IWorkerRepositor
 
         if (queueEntry is not null)
         {
-            _dbContext.GameEnrichmentQueues.Remove(queueEntry);
+            if (string.IsNullOrWhiteSpace(update.IgdbId))
+            {
+                queueEntry.Status = EnrichmentStatus.MissingIgdb;
+                queueEntry.LastAttempt = DateTime.UtcNow;
+            }
+            else
+            {
+                _dbContext.GameEnrichmentQueues.Remove(queueEntry);
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task MarkGameMissingIgdbAsync(Guid gameId, DateTime attemptAt, CancellationToken cancellationToken = default)
+    {
+        var entry = await _dbContext.GameEnrichmentQueues
+            .SingleOrDefaultAsync(entity => entity.GameId == gameId, cancellationToken);
+
+        if (entry is null)
+        {
+            return;
+        }
+
+        entry.Status = EnrichmentStatus.MissingIgdb;
+        entry.LastAttempt = attemptAt;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task CompleteGameIgdbRefreshAsync(Guid gameId, string igdbId, CancellationToken cancellationToken = default)
+    {
+        var game = await _dbContext.Games
+            .SingleOrDefaultAsync(entity => entity.Id == gameId, cancellationToken);
+
+        if (game is not null)
+        {
+            game.IgdbId = igdbId;
+        }
+
+        var entry = await _dbContext.GameEnrichmentQueues
+            .SingleOrDefaultAsync(entity => entity.GameId == gameId, cancellationToken);
+
+        if (entry is not null)
+        {
+            entry.Status = EnrichmentStatus.Completed;
+            entry.LastAttempt = DateTime.UtcNow;
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);

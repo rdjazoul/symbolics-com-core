@@ -7,5 +7,6 @@ public enum EnrichmentStatus
     Completed = 2,
     RetryDelay = 3,
     Failed = 4,
-    DataNotFound = 5
+    DataNotFound = 5,
+    MissingIgdb = 6
 }

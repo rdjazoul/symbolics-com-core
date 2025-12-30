@@ -53,6 +53,7 @@ builder.Services.Configure<TwitchOptions>(builder.Configuration.GetSection("Twit
 builder.Services.Configure<QdrantOptions>(builder.Configuration.GetSection("Qdrant"));
 builder.Services.Configure<TwitchDiscoveryOptions>(builder.Configuration.GetSection("TwitchDiscovery"));
 builder.Services.Configure<TwitchEnrichmentOptions>(builder.Configuration.GetSection("TwitchEnrichment"));
+builder.Services.Configure<IgdbRefreshOptions>(builder.Configuration.GetSection("IgdbRefresh"));
 builder.Services.Configure<StreamMaintenanceOptions>(builder.Configuration.GetSection("StreamMaintenance"));
 builder.Services.Configure<SwaggerSettings>(builder.Configuration.GetSection("Swagger"));
 builder.Services.Configure<RecommendationOptions>(builder.Configuration.GetSection("Recommendations"));
@@ -101,6 +102,14 @@ builder.Services.AddHostedService(sp =>
         sp.GetRequiredService<IServiceScopeFactory>(),
         sp.GetRequiredService<IOptionsMonitor<TwitchEnrichmentOptions>>(),
         sp.GetRequiredService<ILogger<TwitchEnrichmentWorker>>()
+    );
+});
+builder.Services.AddHostedService(sp =>
+{
+    return new IgdbRefreshWorker(
+        sp.GetRequiredService<IServiceScopeFactory>(),
+        sp.GetRequiredService<IOptionsMonitor<IgdbRefreshOptions>>(),
+        sp.GetRequiredService<ILogger<IgdbRefreshWorker>>()
     );
 });
 builder.Services.AddHostedService<RecommendationWorker>();
