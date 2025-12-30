@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Symbolics.Com.Core.Application.Repositories;
 using Symbolics.Com.Core.Application.Services;
 using Symbolics.Com.Core.Application.Workers;
 using Symbolics.Com.Core.Contract.ExternalServices;
@@ -23,6 +24,25 @@ public sealed class AdminGameService(
     private readonly IWorkerRepository _workerRepository = workerRepository;
     private readonly IStreamerStatsService _streamerStatsService = streamerStatsService;
     private readonly ILogger<AdminGameService> _logger = logger;
+
+    public async Task<IReadOnlyList<GameMissingIgdbDto>> GetGamesMissingIgdbAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var query = from game in _dbContext.Games.AsNoTracking()
+                    where string.IsNullOrWhiteSpace(game.IgdbId)
+                    join twitch in _dbContext.GameTwitches.AsNoTracking()
+                        on game.Id equals twitch.GameId into twitchGroup
+                    from twitch in twitchGroup.OrderByDescending(entry => entry.TwitchId).Take(1).DefaultIfEmpty()
+                    orderby game.Name
+                    select new GameMissingIgdbDto(
+                        game.Id,
+                        twitch == null ? null : twitch.TwitchId,
+                        game.Name,
+                        game.VectorDescription);
+
+        var results = await query.ToListAsync(cancellationToken);
+        return results;
+    }
 
     public async Task<AdminGameUpdateResult> UpdateGameAsync(
         Guid gameId,

@@ -2,6 +2,10 @@ using Microsoft.AspNetCore.Mvc;
 using Symbolics.Com.Core.Api.Models;
 using Symbolics.Com.Core.Api.Security;
 using Symbolics.Com.Core.Application.Services;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Symbolics.Com.Core.Api.Controllers;
 
@@ -11,6 +15,22 @@ namespace Symbolics.Com.Core.Api.Controllers;
 public sealed class AdminGamesController(IAdminGameService adminGameService) : ControllerBase
 {
     private readonly IAdminGameService _adminGameService = adminGameService;
+
+    [HttpGet("missing-igdb")]
+    [ProducesResponseType(typeof(IReadOnlyList<AdminGameMissingIgdbResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetGamesMissingIgdb(CancellationToken cancellationToken)
+    {
+        var games = await _adminGameService.GetGamesMissingIgdbAsync(cancellationToken);
+        var response = games
+            .Select(game => new AdminGameMissingIgdbResponse(
+                game.GameId,
+                game.TwitchId,
+                game.Name,
+                game.VectorDescription))
+            .ToList();
+
+        return Ok(response);
+    }
 
     [HttpPatch("{gameId:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -59,6 +79,6 @@ public sealed class AdminGamesController(IAdminGameService adminGameService) : C
             return true;
         }
 
-        return long.TryParse(trimmed, out var parsed) && parsed > 0;
+        return long.TryParse(trimmed, out var parsed) && parsed >= -1;
     }
 }
