@@ -81,7 +81,6 @@ jobs:
             echo "SWAGGER__USERNAME=${{ secrets.SWAGGER__USERNAME }}" >> .env
             echo "SWAGGER__PASSWORD=${{ secrets.SWAGGER__PASSWORD }}" >> .env
             echo "SERVICE__SERVICEKEY=${{ secrets.SERVICE__SERVICEKEY }}" >> .env
-            echo "COSTSETTINGS__DAILYCOSTTHRESHOLD=${{ secrets.COSTSETTINGS__DAILYCOSTTHRESHOLD }}" >> .env
             echo "AIRTABLE__ACCESSTOKEN=${{ secrets.AIRTABLE__ACCESSTOKEN }}" >> .env
             echo "CORE_IMAGE_TAG=${{ github.ref_name }}" >> .env
 
