@@ -49,6 +49,7 @@ builder.Services.AddScoped<IStreamerRepository, StreamerRepository>();
 builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection("Admin"));
 builder.Services.Configure<ServiceSettings>(builder.Configuration.GetSection("Service"));
 builder.Services.Configure<GeminiOptions>(builder.Configuration.GetSection("Gemini"));
+builder.Services.Configure<AirtableOptions>(builder.Configuration.GetSection("Airtable"));
 builder.Services.Configure<LogOptions>(builder.Configuration.GetSection("Log"));
 builder.Services.Configure<TwitchOptions>(builder.Configuration.GetSection("Twitch"));
 builder.Services.Configure<QdrantOptions>(builder.Configuration.GetSection("Qdrant"));
@@ -78,6 +79,7 @@ builder.Services.AddHttpClient<ITwitchService, TwitchService>((sp, client) =>
 builder.Services.AddHttpClient<IAiService, GeminiAiService>()
     .AddStandardResilienceHandler(options => ConfigureHttpResilience(options, "Gemini", TimeSpan.FromSeconds(30)));
 builder.Services.AddHttpClient<IEmbeddingService, EmbeddingService>();
+builder.Services.AddHttpClient<IAirtableService, AirtableService>();
 builder.Services.AddScoped<IConsumptionTracker, ConsumptionTracker>();
 builder.Services.AddSingleton<IDailyCostMonitor, DailyCostMonitor>();
 builder.Services.AddScoped<IWorkerRepository, WorkerRepository>();

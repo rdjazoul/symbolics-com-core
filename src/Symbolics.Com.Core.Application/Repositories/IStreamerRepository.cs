@@ -7,4 +7,8 @@ public interface IStreamerRepository
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<StreamerDetailsRow>> GetStreamerDetailsAsync(
+        IEnumerable<Guid> streamerIds,
+        CancellationToken cancellationToken = default);
 }
