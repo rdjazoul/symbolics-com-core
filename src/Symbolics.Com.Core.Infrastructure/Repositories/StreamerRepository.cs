@@ -60,5 +60,29 @@ public sealed class StreamerRepository(CoreDbContext dbContext) : IStreamerRepos
 
         return new PagedResult<StreamerListingRow>(items, totalCount);
     }
-}
 
+    public async Task<IReadOnlyList<StreamerDetailsRow>> GetStreamerDetailsAsync(
+        IEnumerable<Guid> streamerIds,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = streamerIds?
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray() ?? [];
+
+        if (ids.Length == 0)
+        {
+            return [];
+        }
+
+        return await _dbContext.Streamers
+            .AsNoTracking()
+            .Where(streamer => ids.Contains(streamer.Id))
+            .Select(streamer => new StreamerDetailsRow(
+                streamer.Id,
+                streamer.PersonaDescription,
+                streamer.VectorDescription,
+                streamer.Email))
+            .ToListAsync(cancellationToken);
+    }
+}
