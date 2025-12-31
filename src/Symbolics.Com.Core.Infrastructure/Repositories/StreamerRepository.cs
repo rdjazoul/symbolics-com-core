@@ -61,18 +61,23 @@ public sealed class StreamerRepository(CoreDbContext dbContext) : IStreamerRepos
         return new PagedResult<StreamerListingRow>(items, totalCount);
     }
 
-    public async Task<IReadOnlyList<StreamerDetailsRow>> GetStreamerDetailsAsync(
-        IEnumerable<Guid> streamerIds,
+    public async Task<IReadOnlyDictionary<Guid, StreamerDetailsRow>> GetStreamerDetailsAsync(
+        IReadOnlyCollection<Guid> streamerIds,
         CancellationToken cancellationToken = default)
     {
-        var ids = streamerIds?
+        if (streamerIds is null)
+        {
+            throw new ArgumentNullException(nameof(streamerIds));
+        }
+
+        var ids = streamerIds
             .Where(id => id != Guid.Empty)
             .Distinct()
-            .ToArray() ?? [];
+            .ToArray();
 
         if (ids.Length == 0)
         {
-            return [];
+            return new Dictionary<Guid, StreamerDetailsRow>();
         }
 
         return await _dbContext.Streamers
@@ -80,9 +85,10 @@ public sealed class StreamerRepository(CoreDbContext dbContext) : IStreamerRepos
             .Where(streamer => ids.Contains(streamer.Id))
             .Select(streamer => new StreamerDetailsRow(
                 streamer.Id,
-                streamer.PersonaDescription,
                 streamer.VectorDescription,
-                streamer.Email))
-            .ToListAsync(cancellationToken);
+                streamer.PersonaDescription,
+                streamer.Email,
+                streamer.Language))
+            .ToDictionaryAsync(row => row.StreamerId, cancellationToken);
     }
 }

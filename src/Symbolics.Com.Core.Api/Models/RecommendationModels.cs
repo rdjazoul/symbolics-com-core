@@ -9,6 +9,7 @@ public sealed record ExpressRecommendationRequest(string Description, string? La
 public sealed record AdminExpressRecommendationRequest(
     string Description,
     string? Language,
+    int? Skip,
     int? Limit);
 
 public sealed record RecommendationAcceptedResponse(Guid SearchId);

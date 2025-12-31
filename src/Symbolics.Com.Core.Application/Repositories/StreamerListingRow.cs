@@ -7,9 +7,3 @@ public sealed record StreamerListingRow(
     bool HasEmail,
     string TwitchLogin,
     string TwitchName);
-
-public sealed record StreamerDetailsRow(
-    Guid StreamerId,
-    string? PersonaDescription,
-    string? VectorDescription,
-    string? Email);

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Symbolics.Com.Core.Api.Models;
 using Symbolics.Com.Core.Api.Security;
 using Symbolics.Com.Core.Application.Repositories;
@@ -15,13 +16,15 @@ public sealed class AdminRecommendationsController(
     IEmbeddingService embeddingService,
     IRecommendationService recommendationService,
     IStreamerRepository streamerRepository,
-    IAirtableService airtableService) : ControllerBase
+    IAirtableService airtableService,
+    ILogger<AdminRecommendationsController> logger) : ControllerBase
 {
     private const int MinimumDescriptionLength = 10;
     private readonly IEmbeddingService _embeddingService = embeddingService;
     private readonly IRecommendationService _recommendationService = recommendationService;
     private readonly IStreamerRepository _streamerRepository = streamerRepository;
     private readonly IAirtableService _airtableService = airtableService;
+    private readonly ILogger<AdminRecommendationsController> _logger = logger;
 
     [HttpPost("express")]
     [ProducesResponseType(typeof(AdminRecommendationResponse), StatusCodes.Status200OK)]
@@ -45,37 +48,89 @@ public sealed class AdminRecommendationsController(
 
         if (recommendations.Count == 0)
         {
-            return Ok(new AdminRecommendationResponse(0, recommendations));
+            return Ok(new AdminRecommendationResponse(0, Array.Empty<MatchResult>()));
+        }
+
+        var candidates = recommendations
+            .Where(result => result.HasEmail)
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            return Ok(new AdminRecommendationResponse(0, Array.Empty<MatchResult>()));
+        }
+
+        var streamerIds = candidates
+            .Select(result => result.Id)
+            .Distinct()
+            .ToArray();
+        var streamerDetails = await _streamerRepository.GetStreamerDetailsAsync(streamerIds, cancellationToken);
+
+        var candidatePairs = candidates
+            .Select(result =>
+            {
+                streamerDetails.TryGetValue(result.Id, out var details);
+                return new { Result = result, Details = details };
+            })
+            .Where(pair => pair.Details is not null && !string.IsNullOrWhiteSpace(pair.Details!.Email))
+            .ToList();
+
+        if (candidatePairs.Count == 0)
+        {
+            return Ok(new AdminRecommendationResponse(0, Array.Empty<MatchResult>()));
+        }
+
+        var skip = Math.Max(0, request.Skip.GetValueOrDefault());
+        if (skip >= candidatePairs.Count)
+        {
+            return Ok(new AdminRecommendationResponse(0, Array.Empty<MatchResult>()));
         }
 
         var limit = request.Limit.GetValueOrDefault();
-        if (limit <= 0)
+        var remainingCount = candidatePairs.Count - skip;
+        if (limit <= 0 || limit > remainingCount)
         {
-            limit = recommendations.Count;
+            limit = remainingCount;
         }
 
-        var selectedRecommendations = recommendations.Take(limit).ToList();
-        var streamerIds = selectedRecommendations.Select(result => result.Id).ToArray();
-        var streamerDetails = await _streamerRepository.GetStreamerDetailsAsync(streamerIds, cancellationToken);
-        var detailsMap = streamerDetails.ToDictionary(entry => entry.StreamerId);
-
-        var records = selectedRecommendations
-            .Select(result =>
-            {
-                detailsMap.TryGetValue(result.Id, out var details);
-                return new AirtableRecommendationRecord(
-                    result.TwitchName,
-                    result.UrlTwitch,
-                    details?.VectorDescription ?? string.Empty,
-                    details?.PersonaDescription ?? string.Empty,
-                    result.Language ?? string.Empty,
-                    details?.Email ?? string.Empty,
-                    false);
-            })
+        var selectedPairs = candidatePairs
+            .Skip(skip)
+            .Take(limit)
             .ToList();
 
-        await _airtableService.CreateRecommendationsAsync(records, cancellationToken);
+        var successfulResults = new List<MatchResult>(selectedPairs.Count);
 
-        return Ok(new AdminRecommendationResponse(records.Count, selectedRecommendations));
+        foreach (var pair in selectedPairs)
+        {
+            var record = new AirtableRecommendationRecord(
+                pair.Result.TwitchName,
+                pair.Result.UrlTwitch,
+                pair.Details!.VectorDescription ?? string.Empty,
+                pair.Details.PersonaDescription ?? string.Empty,
+                pair.Result.Language ?? string.Empty,
+                pair.Details.Email!,
+                false);
+
+            try
+            {
+                await _airtableService.CreateRecommendationsAsync(new[] { record }, cancellationToken);
+                successfulResults.Add(pair.Result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to send Airtable recommendation for streamer {StreamerId} ({TwitchName}).",
+                    pair.Result.Id,
+                    pair.Result.TwitchName);
+            }
+        }
+
+        if (successfulResults.Count == 0)
+        {
+            return Ok(new AdminRecommendationResponse(0, Array.Empty<MatchResult>()));
+        }
+
+        return Ok(new AdminRecommendationResponse(successfulResults.Count, successfulResults));
     }
 }
