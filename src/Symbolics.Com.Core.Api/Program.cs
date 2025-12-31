@@ -79,6 +79,7 @@ builder.Services.AddHttpClient<IAiService, GeminiAiService>()
     .AddStandardResilienceHandler(options => ConfigureHttpResilience(options, "Gemini", TimeSpan.FromSeconds(30)));
 builder.Services.AddHttpClient<IEmbeddingService, EmbeddingService>();
 builder.Services.AddScoped<IConsumptionTracker, ConsumptionTracker>();
+builder.Services.AddSingleton<IDailyCostMonitor, DailyCostMonitor>();
 builder.Services.AddScoped<IWorkerRepository, WorkerRepository>();
 builder.Services.AddScoped<IStreamMaintenanceService, StreamMaintenanceService>();
 builder.Services.AddScoped<IStreamerLanguageService, StreamerLanguageService>();
@@ -105,8 +106,8 @@ builder.Services.AddHostedService(sp =>
     return new TwitchEnrichmentWorker(
         sp.GetRequiredService<IServiceScopeFactory>(),
         sp.GetRequiredService<IOptionsMonitor<TwitchEnrichmentOptions>>(),
-        sp.GetRequiredService<IOptionsMonitor<GeminiOptions>>(),
         sp.GetRequiredService<IOptionsMonitor<CostSettings>>(),
+        sp.GetRequiredService<IDailyCostMonitor>(),
         sp.GetRequiredService<ILogger<TwitchEnrichmentWorker>>()
     );
 });
