@@ -2,6 +2,11 @@ namespace Symbolics.Com.Core.Application.Workers;
 
 public sealed record WorkerStateDto(string WorkerName, string? CurrentCursor, DateTime LastCleanupDate, bool IsEnabled);
 
+public sealed record DailyCostTotals(
+    long EmbeddingUnits,
+    long DescriptionInputUnits,
+    long DescriptionOutputUnits);
+
 public sealed record StreamerCreation(
     Guid StreamerId,
     string TwitchId,

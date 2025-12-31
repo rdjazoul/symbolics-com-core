@@ -56,6 +56,7 @@ builder.Services.Configure<TwitchDiscoveryOptions>(builder.Configuration.GetSect
 builder.Services.Configure<TwitchEnrichmentOptions>(builder.Configuration.GetSection("TwitchEnrichment"));
 builder.Services.Configure<IgdbRefreshOptions>(builder.Configuration.GetSection("IgdbRefresh"));
 builder.Services.Configure<StreamMaintenanceOptions>(builder.Configuration.GetSection("StreamMaintenance"));
+builder.Services.Configure<CostSettings>(builder.Configuration.GetSection("CostSettings"));
 builder.Services.Configure<SwaggerSettings>(builder.Configuration.GetSection("Swagger"));
 builder.Services.Configure<RecommendationOptions>(builder.Configuration.GetSection("Recommendations"));
 builder.Services.AddDistributedMemoryCache();
@@ -104,6 +105,8 @@ builder.Services.AddHostedService(sp =>
     return new TwitchEnrichmentWorker(
         sp.GetRequiredService<IServiceScopeFactory>(),
         sp.GetRequiredService<IOptionsMonitor<TwitchEnrichmentOptions>>(),
+        sp.GetRequiredService<IOptionsMonitor<GeminiOptions>>(),
+        sp.GetRequiredService<IOptionsMonitor<CostSettings>>(),
         sp.GetRequiredService<ILogger<TwitchEnrichmentWorker>>()
     );
 });

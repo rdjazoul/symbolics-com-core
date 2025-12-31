@@ -6,17 +6,23 @@ using Symbolics.Com.Core.Application.Services;
 using Symbolics.Com.Core.Application.Workers;
 using Symbolics.Com.Core.Contract.ExternalServices;
 using Symbolics.Com.Core.Contract.Qdrant;
+using Symbolics.Com.Core.Infrastructure.ExternalServices;
+using Symbolics.Com.Core.Infrastructure.Services;
 
 namespace Symbolics.Com.Core.Infrastructure.Workers;
 
 public sealed class TwitchEnrichmentWorker(
     IServiceScopeFactory scopeFactory,
     IOptionsMonitor<TwitchEnrichmentOptions> optionsMonitor,
+    IOptionsMonitor<GeminiOptions> geminiOptionsMonitor,
+    IOptionsMonitor<CostSettings> costSettingsMonitor,
     ILogger<TwitchEnrichmentWorker> logger) : BackgroundService
 {
     private const string WorkerName = "Enrichment";
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
     private readonly IOptionsMonitor<TwitchEnrichmentOptions> _optionsMonitor = optionsMonitor;
+    private readonly IOptionsMonitor<GeminiOptions> _geminiOptionsMonitor = geminiOptionsMonitor;
+    private readonly IOptionsMonitor<CostSettings> _costSettingsMonitor = costSettingsMonitor;
     private readonly ILogger<TwitchEnrichmentWorker> _logger = logger;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -38,9 +44,23 @@ public sealed class TwitchEnrichmentWorker(
     {
         _logger.LogInformation("Start new Twitch enrichment cycle");
 
-        var options = _optionsMonitor.CurrentValue;
         using var scope = _scopeFactory.CreateScope();
         var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
+
+        var totals = await workerRepository.GetDailyCostTotalsAsync(DateTime.UtcNow.Date, stoppingToken);
+        var geminiOptions = _geminiOptionsMonitor.CurrentValue;
+        var costSettings = _costSettingsMonitor.CurrentValue;
+        var totalCost = CalculateDailyCost(totals, geminiOptions);
+        if (totalCost >= costSettings.DailyCostThreshold)
+        {
+            _logger.LogWarning(
+                "Daily AI cost threshold reached. TotalCost={TotalCost} Threshold={DailyCostThreshold}",
+                totalCost,
+                costSettings.DailyCostThreshold);
+            return;
+        }
+
+        var options = _optionsMonitor.CurrentValue;
         var workerState = await workerRepository.GetWorkerStateAsync(WorkerName, stoppingToken);
         if (workerState is null)
         {
@@ -68,6 +88,17 @@ public sealed class TwitchEnrichmentWorker(
         var gameTasks = gameQueue.Select(item => ProcessGameAsync(item, semaphore, stoppingToken));
 
         await Task.WhenAll(streamerTasks.Concat(gameTasks));
+    }
+
+    private static decimal CalculateDailyCost(DailyCostTotals totals, GeminiOptions options)
+    {
+        const decimal tokenUnit = 1_000_000m;
+
+        var embeddingCost = totals.EmbeddingUnits / tokenUnit * options.EmbeddingCostPerMillion;
+        var descriptionInputCost = totals.DescriptionInputUnits / tokenUnit * options.DescriptionInputCostPerMillion;
+        var descriptionOutputCost = totals.DescriptionOutputUnits / tokenUnit * options.DescriptionOutputCostPerMillion;
+
+        return embeddingCost + descriptionInputCost + descriptionOutputCost;
     }
 
     private async Task ProcessStreamerAsync(
