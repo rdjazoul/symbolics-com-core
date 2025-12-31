@@ -2,11 +2,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
+using System.Threading;
 using Symbolics.Com.Core.Application.Services;
 using Symbolics.Com.Core.Application.Workers;
 using Symbolics.Com.Core.Contract.ExternalServices;
 using Symbolics.Com.Core.Contract.Qdrant;
-using Symbolics.Com.Core.Infrastructure.ExternalServices;
 using Symbolics.Com.Core.Infrastructure.Services;
 
 namespace Symbolics.Com.Core.Infrastructure.Workers;
@@ -14,15 +14,18 @@ namespace Symbolics.Com.Core.Infrastructure.Workers;
 public sealed class TwitchEnrichmentWorker(
     IServiceScopeFactory scopeFactory,
     IOptionsMonitor<TwitchEnrichmentOptions> optionsMonitor,
-    IOptionsMonitor<GeminiOptions> geminiOptionsMonitor,
     IOptionsMonitor<CostSettings> costSettingsMonitor,
+    IDailyCostMonitor dailyCostMonitor,
     ILogger<TwitchEnrichmentWorker> logger) : BackgroundService
 {
     private const string WorkerName = "Enrichment";
+    private const string GenerateEmbeddingAction = "GenerateEmbedding";
+    private const string GenerateGameDescriptionAction = "GenerateGameDescription";
+    private const string GenerateStreamerDescriptionAction = "GenerateStreamerDescription";
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
     private readonly IOptionsMonitor<TwitchEnrichmentOptions> _optionsMonitor = optionsMonitor;
-    private readonly IOptionsMonitor<GeminiOptions> _geminiOptionsMonitor = geminiOptionsMonitor;
     private readonly IOptionsMonitor<CostSettings> _costSettingsMonitor = costSettingsMonitor;
+    private readonly IDailyCostMonitor _dailyCostMonitor = dailyCostMonitor;
     private readonly ILogger<TwitchEnrichmentWorker> _logger = logger;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -47,10 +50,8 @@ public sealed class TwitchEnrichmentWorker(
         using var scope = _scopeFactory.CreateScope();
         var workerRepository = scope.ServiceProvider.GetRequiredService<IWorkerRepository>();
 
-        var totals = await workerRepository.GetDailyCostTotalsAsync(DateTime.UtcNow.Date, stoppingToken);
-        var geminiOptions = _geminiOptionsMonitor.CurrentValue;
         var costSettings = _costSettingsMonitor.CurrentValue;
-        var totalCost = CalculateDailyCost(totals, geminiOptions);
+        var totalCost = await _dailyCostMonitor.GetCurrentCostAsync(DateTime.UtcNow.Date, stoppingToken);
         if (totalCost >= costSettings.DailyCostThreshold)
         {
             _logger.LogWarning(
@@ -83,32 +84,28 @@ public sealed class TwitchEnrichmentWorker(
         }
 
         using var semaphore = new SemaphoreSlim(Math.Max(1, options.MaxConcurrentRequests));
+        var budgetState = new BudgetState();
 
-        var streamerTasks = streamerQueue.Select(item => ProcessStreamerAsync(item, semaphore, stoppingToken));
-        var gameTasks = gameQueue.Select(item => ProcessGameAsync(item, semaphore, stoppingToken));
+        var streamerTasks = streamerQueue.Select(item => ProcessStreamerAsync(item, budgetState, semaphore, stoppingToken));
+        var gameTasks = gameQueue.Select(item => ProcessGameAsync(item, budgetState, semaphore, stoppingToken));
 
         await Task.WhenAll(streamerTasks.Concat(gameTasks));
     }
 
-    private static decimal CalculateDailyCost(DailyCostTotals totals, GeminiOptions options)
-    {
-        const decimal tokenUnit = 1_000_000m;
-
-        var embeddingCost = totals.EmbeddingUnits / tokenUnit * options.EmbeddingCostPerMillion;
-        var descriptionInputCost = totals.DescriptionInputUnits / tokenUnit * options.DescriptionInputCostPerMillion;
-        var descriptionOutputCost = totals.DescriptionOutputUnits / tokenUnit * options.DescriptionOutputCostPerMillion;
-
-        return embeddingCost + descriptionInputCost + descriptionOutputCost;
-    }
-
     private async Task ProcessStreamerAsync(
         StreamerEnrichmentQueueItem item,
+        BudgetState budgetState,
         SemaphoreSlim semaphore,
         CancellationToken stoppingToken)
     {
         await semaphore.WaitAsync(stoppingToken);
         try
         {
+            if (await ShouldStopForBudgetAsync(budgetState, stoppingToken))
+            {
+                return;
+            }
+
             using var scope = _scopeFactory.CreateScope();
             var twitchService = scope.ServiceProvider.GetRequiredService<ITwitchService>();
             var aiService = scope.ServiceProvider.GetRequiredService<IAiService>();
@@ -128,22 +125,29 @@ public sealed class TwitchEnrichmentWorker(
                 twitchInfo.Description);
             await consumptionTracker.LogAsync(
                 "Gemini",
-                "GenerateStreamerDescription",
+                GenerateStreamerDescriptionAction,
                 aiDescriptions.Consumption.Model,
                 aiDescriptions.Consumption.InputUnits,
                 aiDescriptions.Consumption.OutputUnits,
                 aiDescriptions.Consumption.CachedUnits,
                 aiDescriptions.Consumption.ProcessingTimeMs);
+            _dailyCostMonitor.RegisterConsumption(GenerateStreamerDescriptionAction, aiDescriptions.Consumption);
+
+            if (await ShouldStopForBudgetAsync(budgetState, stoppingToken))
+            {
+                return;
+            }
 
             var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.VectorDescription);
             await consumptionTracker.LogAsync(
                 "Gemini",
-                "GenerateEmbedding",
+                GenerateEmbeddingAction,
                 embedding.Consumption.Model,
                 embedding.Consumption.InputUnits,
                 embedding.Consumption.OutputUnits,
                 embedding.Consumption.CachedUnits,
                 embedding.Consumption.ProcessingTimeMs);
+            _dailyCostMonitor.RegisterConsumption(GenerateEmbeddingAction, embedding.Consumption);
             if (!qdrantClient.SaveStreamerDescription(item.StreamerId, embedding.Vector, aiDescriptions.VectorDescription, string.Empty))
             {
                 throw new InvalidOperationException($"Failed to save streamer embedding for {item.StreamerId}.");
@@ -176,12 +180,18 @@ public sealed class TwitchEnrichmentWorker(
 
     private async Task ProcessGameAsync(
         GameEnrichmentQueueItem item,
+        BudgetState budgetState,
         SemaphoreSlim semaphore,
         CancellationToken stoppingToken)
     {
         await semaphore.WaitAsync(stoppingToken);
         try
         {
+            if (await ShouldStopForBudgetAsync(budgetState, stoppingToken))
+            {
+                return;
+            }
+
             using var scope = _scopeFactory.CreateScope();
             var twitchService = scope.ServiceProvider.GetRequiredService<ITwitchService>();
             var aiService = scope.ServiceProvider.GetRequiredService<IAiService>();
@@ -195,22 +205,29 @@ public sealed class TwitchEnrichmentWorker(
             var aiDescriptions = await aiService.GenerateGameDescription(twitchInfo.Id, twitchInfo.Name);
             await consumptionTracker.LogAsync(
                 "Gemini",
-                "GenerateGameDescription",
+                GenerateGameDescriptionAction,
                 aiDescriptions.Consumption.Model,
                 aiDescriptions.Consumption.InputUnits,
                 aiDescriptions.Consumption.OutputUnits,
                 aiDescriptions.Consumption.CachedUnits,
                 aiDescriptions.Consumption.ProcessingTimeMs);
+            _dailyCostMonitor.RegisterConsumption(GenerateGameDescriptionAction, aiDescriptions.Consumption);
+
+            if (await ShouldStopForBudgetAsync(budgetState, stoppingToken))
+            {
+                return;
+            }
 
             var embedding = await embeddingService.GenerateEmbedding(aiDescriptions.VectorDescription);
             await consumptionTracker.LogAsync(
                 "Gemini",
-                "GenerateEmbedding",
+                GenerateEmbeddingAction,
                 embedding.Consumption.Model,
                 embedding.Consumption.InputUnits,
                 embedding.Consumption.OutputUnits,
                 embedding.Consumption.CachedUnits,
                 embedding.Consumption.ProcessingTimeMs);
+            _dailyCostMonitor.RegisterConsumption(GenerateEmbeddingAction, embedding.Consumption);
             if (!qdrantClient.SaveGameDescription(item.GameId, embedding.Vector, aiDescriptions.VectorDescription))
             {
                 throw new InvalidOperationException($"Failed to save game embedding for {item.GameId}.");
@@ -242,5 +259,39 @@ public sealed class TwitchEnrichmentWorker(
         {
             semaphore.Release();
         }
+    }
+
+    private async Task<bool> ShouldStopForBudgetAsync(BudgetState budgetState, CancellationToken stoppingToken)
+    {
+        if (budgetState.IsStopped)
+        {
+            return true;
+        }
+
+        var currentCost = await _dailyCostMonitor.GetCurrentCostAsync(DateTime.UtcNow.Date, stoppingToken);
+        var threshold = _costSettingsMonitor.CurrentValue.DailyCostThreshold;
+        if (currentCost >= threshold)
+        {
+            if (budgetState.TryStop())
+            {
+                _logger.LogWarning(
+                    "Batch processing interrupted: Daily budget reached mid-cycle ({CurrentCost}$ / {Threshold}$)",
+                    currentCost,
+                    threshold);
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private sealed class BudgetState
+    {
+        private int _stopped;
+
+        public bool IsStopped => Volatile.Read(ref _stopped) == 1;
+
+        public bool TryStop() => Interlocked.Exchange(ref _stopped, 1) == 0;
     }
 }

@@ -7,7 +7,6 @@ using Symbolics.Com.Core.Application.Workers;
 using Symbolics.Com.Core.Contract.ExternalServices;
 using Symbolics.Com.Core.Contract.ExternalServices.Models;
 using Symbolics.Com.Core.Contract.Qdrant;
-using Symbolics.Com.Core.Infrastructure.ExternalServices;
 using Symbolics.Com.Core.Infrastructure.Services;
 using Symbolics.Com.Core.Infrastructure.Workers;
 using Xunit;
@@ -180,10 +179,8 @@ public sealed class TwitchEnrichmentWorkerTests
     [Fact]
     public async Task DoWorkAsync_SkipsQueuesWhenDailyCostThresholdReached()
     {
-        var totals = new DailyCostTotals(2_000_000, 0, 0);
-
         var worker = BuildWorker(
-            dailyCostTotals: totals,
+            dailyCost: 0.02m,
             costSettings: new CostSettings { DailyCostThreshold = 0.01m });
 
         await worker.Worker.DoWorkAsync(CancellationToken.None);
@@ -200,6 +197,93 @@ public sealed class TwitchEnrichmentWorkerTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task DoWorkAsync_StopsBeforeStartingStreamerWhenBudgetReachedMidCycle()
+    {
+        var streamerItem = new StreamerEnrichmentQueueItem(Guid.NewGuid(), "login-1");
+
+        var worker = BuildWorker(
+            streamerQueue: [streamerItem],
+            dailyCostSequence: [0.0m, 10.0m],
+            costSettings: new CostSettings { DailyCostThreshold = 5.0m });
+
+        await worker.Worker.DoWorkAsync(CancellationToken.None);
+
+        worker.AiService.Verify(service => service.GenerateStreamerDescription(
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<string>()),
+            Times.Never);
+        worker.EmbeddingService.Verify(service => service.GenerateEmbedding(It.IsAny<string>()), Times.Never);
+        worker.Logger.Verify(
+            logger => logger.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) => state.ToString()!.Contains("Batch processing interrupted: Daily budget reached mid-cycle")),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task DoWorkAsync_StopsBeforeEmbeddingWhenBudgetReachedAfterDescription()
+    {
+        var streamerItem = new StreamerEnrichmentQueueItem(Guid.NewGuid(), "login-1");
+        var twitchInfo = new TwitchStreamerResponse
+        {
+            Id = "twitch-1",
+            Login = "login-1",
+            DisplayName = "Streamer Name",
+            Description = "bio"
+        };
+        var aiResponse = new AiStreamerDescriptionsResponse
+        {
+            VectorDescription = "vector",
+            PersonaDescription = "persona",
+            Email = "streamer@example.com",
+            Consumption = new ConsumptionMetrics
+            {
+                Model = "gemini",
+                InputUnits = 10,
+                OutputUnits = 20,
+                CachedUnits = 2,
+                ProcessingTimeMs = 100
+            }
+        };
+
+        var worker = BuildWorker(
+            streamerQueue: [streamerItem],
+            twitchStreamerResponse: twitchInfo,
+            aiStreamerResponse: aiResponse,
+            dailyCostSequence: [0.0m, 0.0m, 10.0m],
+            costSettings: new CostSettings { DailyCostThreshold = 5.0m });
+
+        await worker.Worker.DoWorkAsync(CancellationToken.None);
+
+        worker.AiService.Verify(service => service.GenerateStreamerDescription(
+            "twitch-1",
+            "login-1",
+            "Streamer Name",
+            "https://www.twitch.tv/login-1",
+            "bio"),
+            Times.Once);
+        worker.EmbeddingService.Verify(service => service.GenerateEmbedding(It.IsAny<string>()), Times.Never);
+        worker.WorkerRepository.Verify(repository => repository.FinalizeStreamerEnrichmentAsync(
+            It.IsAny<StreamerEnrichmentUpdate>(),
+            It.IsAny<CancellationToken>()),
+            Times.Never);
+        worker.Logger.Verify(
+            logger => logger.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) => state.ToString()!.Contains("Batch processing interrupted: Daily budget reached mid-cycle")),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
     private static WorkerHarness BuildWorker(
         IReadOnlyList<StreamerEnrichmentQueueItem>? streamerQueue = null,
         IReadOnlyList<GameEnrichmentQueueItem>? gameQueue = null,
@@ -208,14 +292,15 @@ public sealed class TwitchEnrichmentWorkerTests
         AiStreamerDescriptionsResponse? aiStreamerResponse = null,
         AiGameDescriptionResponse? aiGameResponse = null,
         EmbeddingResponse? embeddingResponse = null,
-        DailyCostTotals? dailyCostTotals = null,
-        CostSettings? costSettings = null,
-        GeminiOptions? geminiOptions = null)
+        decimal? dailyCost = null,
+        IReadOnlyList<decimal>? dailyCostSequence = null,
+        CostSettings? costSettings = null)
     {
         var twitchService = new Mock<ITwitchService>();
         var aiService = new Mock<IAiService>();
         var embeddingService = new Mock<IEmbeddingService>();
         var consumptionTracker = new Mock<IConsumptionTracker>();
+        var dailyCostMonitor = new Mock<IDailyCostMonitor>();
         var qdrantClient = new Mock<IQdrantClient>();
         var workerRepository = new Mock<IWorkerRepository>();
         var streamerStatsService = new Mock<IStreamerStatsService>();
@@ -226,6 +311,7 @@ public sealed class TwitchEnrichmentWorkerTests
         services.AddSingleton(aiService.Object);
         services.AddSingleton(embeddingService.Object);
         services.AddSingleton(consumptionTracker.Object);
+        services.AddSingleton(dailyCostMonitor.Object);
         services.AddSingleton(qdrantClient.Object);
         services.AddSingleton(workerRepository.Object);
         services.AddSingleton(streamerStatsService.Object);
@@ -236,8 +322,19 @@ public sealed class TwitchEnrichmentWorkerTests
             .ReturnsAsync(streamerQueue ?? []);
         workerRepository.Setup(repository => repository.GetGameEnrichmentQueueAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(gameQueue ?? []);
-        workerRepository.Setup(repository => repository.GetDailyCostTotalsAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(dailyCostTotals ?? new DailyCostTotals(0, 0, 0));
+        if (dailyCostSequence is not null)
+        {
+            var sequence = dailyCostMonitor.SetupSequence(monitor => monitor.GetCurrentCostAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>()));
+            foreach (var cost in dailyCostSequence)
+            {
+                sequence.ReturnsAsync(cost);
+            }
+        }
+        else
+        {
+            dailyCostMonitor.Setup(monitor => monitor.GetCurrentCostAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(dailyCost ?? 0m);
+        }
         workerRepository.Setup(repository => repository.FinalizeStreamerEnrichmentAsync(It.IsAny<StreamerEnrichmentUpdate>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         workerRepository.Setup(repository => repository.FinalizeGameEnrichmentAsync(It.IsAny<GameEnrichmentUpdate>(), It.IsAny<CancellationToken>()))
@@ -275,12 +372,6 @@ public sealed class TwitchEnrichmentWorkerTests
         {
             MaxConcurrentRequests = 1
         });
-        var geminiOptionsMonitor = new TestOptionsMonitor<GeminiOptions>(geminiOptions ?? new GeminiOptions
-        {
-            EmbeddingCostPerMillion = 0.025m,
-            DescriptionInputCostPerMillion = 0.1m,
-            DescriptionOutputCostPerMillion = 0.4m
-        });
         var costSettingsMonitor = new TestOptionsMonitor<CostSettings>(costSettings ?? new CostSettings
         {
             DailyCostThreshold = 1000m
@@ -289,11 +380,11 @@ public sealed class TwitchEnrichmentWorkerTests
         var worker = new TwitchEnrichmentWorker(
             scopeFactory,
             optionsMonitor,
-            geminiOptionsMonitor,
             costSettingsMonitor,
+            dailyCostMonitor.Object,
             logger.Object);
 
-        return new WorkerHarness(worker, twitchService, aiService, embeddingService, consumptionTracker, qdrantClient, workerRepository, streamerStatsService, logger);
+        return new WorkerHarness(worker, twitchService, aiService, embeddingService, consumptionTracker, dailyCostMonitor, qdrantClient, workerRepository, streamerStatsService, logger);
     }
 
     private sealed record WorkerHarness(
@@ -302,6 +393,7 @@ public sealed class TwitchEnrichmentWorkerTests
         Mock<IAiService> AiService,
         Mock<IEmbeddingService> EmbeddingService,
         Mock<IConsumptionTracker> ConsumptionTracker,
+        Mock<IDailyCostMonitor> DailyCostMonitor,
         Mock<IQdrantClient> QdrantClient,
         Mock<IWorkerRepository> WorkerRepository,
         Mock<IStreamerStatsService> StreamerStatsService,
