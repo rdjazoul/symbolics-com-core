@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace Symbolics.Com.Core.Application.Repositories;
 
 public interface IStreamerRepository
@@ -6,5 +9,9 @@ public interface IStreamerRepository
         string? language,
         int page,
         int pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyDictionary<Guid, StreamerDetailsRow>> GetStreamerDetailsAsync(
+        IReadOnlyCollection<Guid> streamerIds,
         CancellationToken cancellationToken = default);
 }
